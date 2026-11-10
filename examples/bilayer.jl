@@ -56,7 +56,8 @@ twistxy = grid_to_points(twist, wsf, moire, xs, ys)
 fig = Figure(size = (1500, 520), fontsize = 16)
 lim = (-1.1, 1.1, -1.1, 1.1)                            # the heatmaps fill the axes (the arrows at the edge are clipped)
 labels = (xlabelsize = 21, ylabelsize = 21, xticklabelsize = 17, yticklabelsize = 17, titlesize = 20)
-ax1 = Axis(fig[1, 1]; title = L"stacking energy $V$", xlabel = L"x / L", ylabel = L"y / L", limits = lim, labels...)
+ax1 = Axis(fig[1, 1]; title = L"stacking energy $V[\mathbf{\phi}(\mathbf{r})]$", xlabel = L"x / L", ylabel = L"y / L",
+           limits = lim, labels...)
 Colorbar(fig[1, 2], heatmap!(ax1, xs, ys, Vxy; colormap = :viridis); label = L"$V$ (meV/cell)", labelsize = 21,
          ticklabelsize = 17)
 ax2 = Axis(fig[1, 3]; title = L"displacement $\mathbf{u} = \mathbf{u}_1 - \mathbf{u}_2$", xlabel = L"x / L",
