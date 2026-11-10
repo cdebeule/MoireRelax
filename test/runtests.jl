@@ -82,6 +82,7 @@ end
     @test Hmin ≈ Hmin'
     @test isposdef(Symmetric(Hmin))
     @test stiffness(Vg) ≈ tr(Hmin) / 2
+    @test hessian(Vg, ϕmin; h = 1e-4) == Hmin                       # the call of earlier versions, with a step
     @test stiffness(Vg, Workspace(5, 1; flags)) ≈ stiffness(Vg)
     # any callable V(ϕ) -> (V, ∇V) serves as the potential
     Vfun(ϕ) = VdV_fast(ϕ, P...)
@@ -195,13 +196,34 @@ end
         return v12 + v23, d12, d23 - d12, -d23
     end
     u3, E_el3, E_V3, conv3 = relax_moire((d, u) -> stacking_energy!(V3, d, u, moire3, ws3), repeat(K1 / 2, 1, 3),
-                                         chain_laplacian([k, k]), moire3, ws3)
+                                         chain_laplacian([k, k]), moire3, ws3; verbose = false)
     @test conv3
     @test E_el3 ≈ 2.8292067119 atol = 1e-7
     @test E_V3 ≈ -6.9405792468 atol = 1e-7
     D3 = to_grid!(ws3, u3, moire3)
     @test maximum(abs, D3[:, :, 1] - D3[:, :, 3]) < 1e-6             # mirror symmetry: the outer layers move alike
     @test maximum(abs, D3[:, :, 1] + D3[:, :, 2] + D3[:, :, 3]) < 1e-8 # and the center of mass stays put
+end
+
+@testset "per-mode compliances" begin
+    # one row of compliances per mode, as for an effective bilayer: the elastic energy, both solvers, both preconditioners
+    ws = WorkspaceC3(12, 1; flags)
+    moire = MoireGeometry(moire_matrix(1.0), ws)
+    pot! = bilayer_potential(moire, ws)
+    C = fill(stiffness(Vg, ws), 1, 1)
+    n = length(moire.g)
+    uniform = relax_moire(pot!, K1, C, moire, ws; verbose = false)
+    replicated = relax_moire(pot!, repeat(K1, n, 1), C, moire, ws; verbose = false)
+    @test replicated.u ≈ uniform.u rtol = 1e-12                       # the same compliances, written once per mode
+    @test replicated.E_el + replicated.E_V ≈ uniform.E_el + uniform.E_V rtol = 1e-12
+    Kvar = K1 .* (1 .+ 0.5 .* sin.(1:n))                             # compliances that vary from mode to mode
+    lbfgs = relax_moire(pot!, Kvar, C, moire, ws; verbose = false, rtol = 1e-9)
+    diis = relax_moire(pot!, Kvar, C, moire, ws; verbose = false, solver = :diis, rtol = 1e-9)
+    @test lbfgs.converged
+    @test diis.converged
+    @test lbfgs.E_el + lbfgs.E_V ≈ diis.E_el + diis.E_V atol = 1e-10
+    @test maximum(abs, lbfgs.u - diis.u) < 1e-7 * maximum(abs, lbfgs.u)
+    @test lbfgs.E_el ≈ elastic_energy(lbfgs.u, Kvar, moire.L, multiplicity(ws))
 end
 
 @testset "supercells" begin
@@ -241,7 +263,8 @@ end
     # the coordinates in the cell of the point r = s1 L1 + s2 L2 (L_i = M⁻¹ a_i / L) are (s1, s2)
     r = (0.3 * (M \ a1) + 0.45 * (M \ a2)) / moire.L
     @test cell_coordinates(moire, r) ≈ [0.3, 0.45]
-    @test rigid_disregistry(moire, Hexagonal(), r) ≈ 0.3a1 + 0.45a2
+    @test rigid_disregistry(moire, r) ≈ 0.3a1 + 0.45a2
+    @test moire.lattice == ws.lattice == Hexagonal()
     @test cell_coordinates(moire, SA[0.0, 0.0]) == [0, 0]
     # fields interpolated from a fine grid against direct sums over the modes
     wsf = WorkspaceC3(10, 1, 128; flags)
@@ -261,7 +284,7 @@ end
     @test maximum(abs, grid_to_points(rot, wsf, moire, xs, ys) - rotref) < 2e-3 * maximum(abs, rotref)
     # the stacking energy on the grid, interpolated, against V at the interpolated stacking
     V = [first(VdV_fast(ϕ0 + SA[real(w), imag(w)], P...)) for (ϕ0, w) in zip(wsf.ϕ0, D)]
-    Vref = [first(VdV_fast(rigid_disregistry(moire, Hexagonal(), SA[x, y]) + SA[real(uref[i, j]), imag(uref[i, j])], P...))
+    Vref = [first(VdV_fast(rigid_disregistry(moire, SA[x, y]) + SA[real(uref[i, j]), imag(uref[i, j])], P...))
             for (i, x) in enumerate(xs), (j, y) in enumerate(ys)]
     @test maximum(abs, grid_to_points(V, wsf, moire, xs, ys) - Vref) < 2e-3 * (maximum(Vref) - minimum(Vref))
     # a supercell grid: the same periodic field interpolated from the grid of a √3 × √3 supercell (the C3 amplitudes

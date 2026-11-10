@@ -68,7 +68,7 @@ the grid of the moiré cell, and `grid_to_points` brings it, or anything compute
 | `src/Relax.jl` | `relax_moire`: minimization of the elastic plus stacking energy by LBFGS or DIIS; `elastic_energy`, `minimize_lbfgs`, `check_gradient` |
 | `src/Precompile.jl` | the workload run while the package is precompiled |
 | `Project.toml` | name, identifier (UUID) and dependencies of the package |
-| `examples/bilayer.jl`, `examples/bilayer_sweep.jl`, `examples/trilayer.jl` | a twisted bilayer at a few angles with a figure of the relaxed moiré (CairoMakie); the same swept from 2° to 0.01°, with the shells following the angle, and the Fourier components of the relaxation and the energies against the angle; an alternating-twist trilayer relaxed layer by layer; `examples/Project.toml` is their environment |
+| `examples/bilayer.jl`, `examples/bilayer_sweep.jl`, `examples/trilayer.jl` | a twisted bilayer at a few angles with a figure of the relaxed moiré (CairoMakie); the same swept from 2° to 0.01°, with the shells following the angle, and the Fourier components of the relaxation and the energies against the angle; an alternating-twist trilayer relaxed layer by layer; `examples/Project.toml` is their environment, and they write their figures and data to `output/` |
 | `docs/reference.md` | this document |
 | `test/runtests.jl` | the tests: the invariants of the method (gradients against finite differences, C3 against no symmetry, LBFGS against DIIS, a supercell against the moiré cell, the D3 potential against its Fourier series and analytic Hessian), the argument checks, reference energies, and the code-quality checks of Aqua.jl; run by `Pkg.test()` and, on GitHub, by the CI workflow on Linux, macOS and Windows |
 
@@ -119,10 +119,10 @@ and `twist_angle(M)` reads $\theta$ from the antisymmetric part of $M$. `MoireGe
 $L$, the mean length of the moiré lattice vectors $M^{-1} a_1$ and $M^{-1} a_2$, the moiré reciprocal vectors
 $g = L M^\mathsf{T} b$ of the modes of `ws` (units $1/L$), such that $g \cdot r = b \cdot \phi_0$ for $r$ in units $L$,
 and the matrix `G` of the moiré reciprocal lattice vectors $g_i = L M^\mathsf{T} b_i$ (columns), so that the mode
-$(n_1, n_2)$ has $g = n_1 g_1 + n_2 g_2$. From it,
+$(n_1, n_2)$ has $g = n_1 g_1 + n_2 g_2$, and the `lattice` of the workspace. From them,
 `cell_coordinates(moire, r)` gives the coordinates $s = G^\mathsf{T} r / 2\pi$ of a point $r$ (units $L$) in the moiré
 cell, with $\phi_0 = s_1 a_1 + s_2 a_2$ (the grid of a workspace is at $s_i = (k - 1)/N_i$), and
-`rigid_disregistry(moire, lattice, r)` the disregistry $\phi_0$ itself.
+`rigid_disregistry(moire, r)` the disregistry $\phi_0$ itself.
 
 The stacking potential of an interface has the D3 form, with $x_i = b_i \cdot \phi$:
 
@@ -135,7 +135,7 @@ $c_3 = \operatorname{Re} V_3$, $p_1 = \operatorname{Im} V_1$, $p_3 = \operatorna
   (`VdV_fast(ϕ, P...)`). It is `series(harmonics(ϕ), c...)`: `harmonics` gives the sines and cosines of the three
   stars once, which several series at the same $\phi$ can share (internal functions)
 - `hessian(Vg, ϕ)`: the Hessian of $V$ at $\phi$, analytic, $-\sum_G 2\operatorname{Re}(V_G e^{iG\cdot\phi})\,GG^\mathsf{T}$
-  over the three stars
+  over the three stars (a step `h` of finite differences is accepted and ignored)
 - `curvature(Vg, ϕ)`: the interface stiffness $k = \operatorname{tr}(\nabla \nabla V)/2$ (meV/cell/$a^2$), the mean
   curvature of $V$ at $\phi$ (warns if $V$ is not convex there)
 - `minimum_stacking(Vg, ws)`: the lowest stacking, from the lowest grid point refined by Newton steps;
@@ -153,9 +153,11 @@ $c_3 = \operatorname{Re} V_3$, $p_1 = \operatorname{Im} V_1$, $p_3 = \operatorna
 `Workspace(N_shell, nf, N = 0; lattice = Hexagonal(), S = nothing, pad = 1, flags = FFTW.MEASURE, fft_threads = 1)`
 holds the modes of `N_shell` shells of the lattice and an $N \times N$ grid for `nf` fields (with a supercell `S`:
 [Supercells](#supercells)). Without `N`, the grid is the smallest FFT-friendly size
-$\ge \mathrm{pad} (2 N_\mathrm{shell} + 1)$: `pad = 1` is the minimal grid; `pad = 1.5` to `2` reduces the aliasing of
-the nonlinear forces onto the modes, which matters for sharp domain walls (small angles). `WorkspaceC3` takes the same
-arguments. `flags = FFTW.MEASURE` (the default) lets FFTW choose its algorithm by timing, so two runs can differ at
+$\ge \mathrm{pad} (2 N_\mathrm{shell} + 1)$: `pad = 1` is the minimal grid. It is enough when the shells resolve the
+domain walls, $N_\mathrm{shell}\,\theta \gtrsim 4$ ($\theta$ in degrees): for twisted bilayer graphene from 1° to 0.02°,
+the energies then agree with those of 2.5 times as many shells on a doubled grid to $2 \times 10^{-7}$ meV/cell, and
+`pad = 1.5` does not bring them closer. A larger `pad` reduces the aliasing of the nonlinear forces onto the
+modes, which can help when the walls are not resolved. `WorkspaceC3` takes the same arguments. `flags = FFTW.MEASURE` (the default) lets FFTW choose its algorithm by timing, so two runs can differ at
 the level of $10^{-16}$; `flags = FFTW.ESTIMATE` makes them reproducible, at the same speed within noise. Scripts use
 the fields `ws.lattice`, `ws.N`, `ws.nf`, `ws.bvecs`, `ws.ϕ0` (the rigid disregistry $s_1 a_1 + s_2 a_2$ on the grid)
 and, with C3, `ws.orb`. A workspace owns its FFT buffers (`ws.W`, `ws.D`), which every `to_grid!`, `from_grid!` and
@@ -233,7 +235,9 @@ So one `potential!` serves both workspaces. Two examples:
 # bilayer: one field, u = u1 - u2
 potential!(dVdu, u, moire, ws, P) = stacking_energy!((ϕ0, w) -> VdV_fast(ϕ0 + w, P...), dVdu, u, moire, ws)
 
-# trilayer: two fields, u_a and u_s
+# trilayer of identical layers: the twist θ between the layers 1 and 2 (ϕ0) and -nθ between 2 and 3 (n = 1: the
+# alternating twist, n = -1: the helical one), the next-nearest interface (1, 3) with its own potential P2, a fixed
+# shift δ of the outer layers, and two fields, u_a = u1 - u3 and u_s = u1 - 2u2 + u3 (V does not depend on u1 + u2 + u3)
 function potential!(dVdu, u, moire, ws, P1, P2, δ, n::Integer)
     return stacking_energy!(dVdu, u, moire, ws) do ϕ0, ua, us
         ua += δ

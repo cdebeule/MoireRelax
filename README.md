@@ -4,7 +4,8 @@
 
 <div align="justify">
 
-A Julia package for lattice relaxation in moiré materials with continuum elasticity theory.
+A Julia package for lattice relaxation in moiré materials with continuum elasticity theory. Version 0.1: the
+interface may still change before version 1.0.
 
 MoireRelax relaxes the in-plane displacements of the layers of a moiré of monolayers with hexagonal symmetry
 (graphene, hBN, transition-metal dichalcogenides, …): it minimizes the elastic energy of the layers plus the stacking
@@ -65,7 +66,9 @@ D = to_grid!(ws, u, moire)                          # u_x + i u_y on the grid of
 ```
 
 This prints the elastic and stacking energies per cell (`E_el = 1.219`, `E_V = -2.738` meV) and returns the mode
-amplitudes `u`; `examples/bilayer.jl` sweeps the angle and `examples/trilayer.jl` does the same for three layers.
+amplitudes `u`. The examples go further: `bilayer.jl` relaxes a few angles and draws the relaxed moiré,
+`bilayer_sweep.jl` follows the Fourier components and the energies from 2° to 0.01°, and `trilayer.jl` relaxes the
+three layers of an alternating-twist trilayer; they write their figures and data to `output/`.
 
 ## References
 

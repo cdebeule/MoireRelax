@@ -1,9 +1,9 @@
 # Twisted bilayer graphene swept over the twist angle, 2° to 0.01°: the Fourier components of the relaxation,
 # the rotation and the dilation of u = u1 - u2 with one amplitude per C3 star, and the energies against the angle.
-# The number of shells follows the angle (N_shell θ ≳ 4 for the domain walls), so the smallest angles use 400 shells
-# on a 1215² grid, about 2 s each; the whole sweep takes about half a minute.
-# Run from the repository root with `julia -t auto --project=examples examples/bilayer_sweep.jl`. The figures are
-# written to bilayer_sweep_modes.png and bilayer_sweep_energies.png, the data to bilayer_sweep.txt.
+# The number of shells follows the angle (N_shell θ ≳ 4 for the domain walls, which converges the energies to about
+# 1e-7 meV/cell), so the smallest angles use 400 shells on an 810² grid; the whole sweep takes a few seconds.
+# Run from the repository root with `julia -t auto --project=examples examples/bilayer_sweep.jl`. The figures and the
+# data are written to output/: bilayer_sweep_modes.png, bilayer_sweep_energies.png and bilayer_sweep.txt.
 
 using MoireRelax, StaticArrays, Printf, CairoMakie
 using MoireRelax: FFTW
@@ -25,7 +25,7 @@ nstar = 15                                              # the stars of the first
 sols, E_el, E_V = Matrix{ComplexF64}[], Float64[], Float64[]
 bvecs = Matrix{Int}(undef, 2, 0)
 for (i, θ) in enumerate(θs)
-    ws = WorkspaceC3(nshell(θ), 1; pad = 1.5, flags = FFTW.ESTIMATE)   # a new grid at each angle, planned quickly
+    ws = WorkspaceC3(nshell(θ), 1; flags = FFTW.ESTIMATE)  # a new grid at each angle, planned quickly
     moire = MoireGeometry(moire_matrix(θ), ws)
     C = fill(stiffness(Vg, ws), 1, 1)
     potential!(dVdu, u) = stacking_energy!((ϕ0, w) -> VdV_fast(ϕ0 + w, P...), dVdu, u, moire, ws)
@@ -41,7 +41,8 @@ end
 u_perp = [real(sols[i][k, 2]) for k in 1:nstar, i in eachindex(θs)]   # rotation, u⊥ = L (ẑ⋅∇×u)_g
 u_para = [real(sols[i][k, 1]) for k in 1:nstar, i in eachindex(θs)]   # dilation, u∥ = L (∇⋅u)_g
 
-open("bilayer_sweep.txt", "w") do io
+out = mkpath("output")
+open(joinpath(out, "bilayer_sweep.txt"), "w") do io
     stars = join(("($(b[1]),$(b[2]))" for b in eachcol(bvecs)), " ")
     println(io, "# theta(deg) E_el E_V (meV/cell), then u_perp and u_para of the stars ", stars)
     for i in eachindex(θs)
@@ -70,10 +71,11 @@ for k in 1:nstar
 end
 axislegend(ax1, L"$\mathbf{g} = n_1 \mathbf{g}_1 + n_2 \mathbf{g}_2$"; position = :rt, nbanks = 3, labelsize = 15)
 resize_to_layout!(fig)
-save("bilayer_sweep_modes.png", fig; px_per_unit = 2)
+save(joinpath(out, "bilayer_sweep_modes.png"), fig; px_per_unit = 2)
 
-### Figure 2: the energies against the angle, and the energies of the walls divided by the angle: both go as θ, the
-### wall length per area, once the domains have formed, so the ratios reach constants
+### Figure 2: the energies against the angle, and the energies of the walls divided by the angle. At small angles both
+### energies go as θ, the wall length per area, so the ratios approach the energies per wall length as θ → 0; E_el/θ
+### approaches its limit linearly in θ
 
 fig2 = Figure(size = (1150, 480), fontsize = 16)
 ax3 = Axis(fig2[1, 1]; title = L"\text{energies per monolayer cell}", xlabel, ylabel = L"\text{meV/cell}", labels...)
@@ -88,5 +90,5 @@ lines!(ax4, θs, E_el ./ θs; linewidth = 2, label = L"$E_\mathrm{el} / \theta$"
 lines!(ax4, θs, (E_V .- V_AB) ./ θs; linewidth = 2, label = L"$(\bar{V} - V_\mathrm{AB}) / \theta$")
 axislegend(ax4; position = :rt, labelsize = 15)
 resize_to_layout!(fig2)
-save("bilayer_sweep_energies.png", fig2; px_per_unit = 2)
-println("figures saved as bilayer_sweep_modes.png and bilayer_sweep_energies.png, the data as bilayer_sweep.txt")
+save(joinpath(out, "bilayer_sweep_energies.png"), fig2; px_per_unit = 2)
+println("figures and data saved in ", out, ": bilayer_sweep_modes.png, bilayer_sweep_energies.png, bilayer_sweep.txt")
