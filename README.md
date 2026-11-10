@@ -1,5 +1,7 @@
 # MoireRelax
 
+[![CI](https://github.com/cdebeule/MoireRelax/actions/workflows/CI.yml/badge.svg)](https://github.com/cdebeule/MoireRelax/actions/workflows/CI.yml)
+
 A Julia package for lattice relaxation in moiré materials with continuum elasticity theory.
 
 MoireRelax relaxes the in-plane displacements of the layers of a moiré of monolayers with hexagonal symmetry
@@ -33,6 +35,7 @@ julia -t auto --project=. examples/bilayer.jl
 ```
 
 Start Julia with threads (`-t auto`): the grid points of the stacking energy are shared out between them.
+The tests run with `julia --project=. -e 'using Pkg; Pkg.test()'`.
 
 ## Example
 
