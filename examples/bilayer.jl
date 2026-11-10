@@ -55,14 +55,14 @@ twistxy = grid_to_points(twist, wsf, moire, xs, ys)
 # labels as LaTeX strings: the parts between $ are math, the rest text (Makie renders both with MathTeXEngine)
 fig = Figure(size = (1500, 520), fontsize = 16)
 lim = (-1.1, 1.1, -1.1, 1.1)                            # the heatmaps fill the axes (the arrows at the edge are clipped)
-labels = (xlabelsize = 24, ylabelsize = 24, xticklabelsize = 18, yticklabelsize = 18)
+labels = (xlabelsize = 21, ylabelsize = 21, xticklabelsize = 17, yticklabelsize = 17, titlesize = 20)
 ax1 = Axis(fig[1, 1]; title = L"stacking energy $V$", xlabel = L"x / L", ylabel = L"y / L", limits = lim, labels...)
-Colorbar(fig[1, 2], heatmap!(ax1, xs, ys, Vxy; colormap = :viridis); label = L"$V$ (meV/cell)", labelsize = 24,
-         ticklabelsize = 18)
+Colorbar(fig[1, 2], heatmap!(ax1, xs, ys, Vxy; colormap = :viridis); label = L"$V$ (meV/cell)", labelsize = 21,
+         ticklabelsize = 17)
 ax2 = Axis(fig[1, 3]; title = L"displacement $\mathbf{u} = \mathbf{u}_1 - \mathbf{u}_2$", xlabel = L"x / L",
            limits = lim, labels...)
 Colorbar(fig[1, 4], heatmap!(ax2, xs, ys, abs.(uxy); colormap = :magma); label = L"$|\mathbf{u}|$ ($a$)",
-         labelsize = 24, ticklabelsize = 18)
+         labelsize = 21, ticklabelsize = 17)
 sub = 5:8:length(xs)                                    # arrows on a coarse subgrid, centered on their points,
 umax = maximum(abs, uxy)                                # the longest 0.07 L (a bit less than their spacing)
 arrows2d!(ax2, xs[sub], ys[sub], real.(uxy[sub, sub]), imag.(uxy[sub, sub]); align = :center,
@@ -70,13 +70,13 @@ arrows2d!(ax2, xs[sub], ys[sub], real.(uxy[sub, sub]), imag.(uxy[sub, sub]); ali
 ax3 = Axis(fig[1, 5]; title = L"local twist angle $\theta + \frac{1}{2} \hat{z} \cdot \nabla \times \mathbf{u}$",
            xlabel = L"x / L", limits = lim, labels...)
 Colorbar(fig[1, 6], heatmap!(ax3, xs, ys, twistxy; colormap = :viridis); label = L"$\theta_\mathrm{loc}$ ($^\circ$)",
-         labelsize = 24, ticklabelsize = 18)
+         labelsize = 21, ticklabelsize = 17)
 for c in (1, 3, 5)
     colsize!(fig.layout, c, Aspect(1, 1.0))             # square axes that fill their cells: the colorbars match them
 end
 θstr, Lstr, Estr = @sprintf("%.2f", θ), @sprintf("%.1f", moire.L), @sprintf("%.3f", Es[end])
 Label(fig[0, 1:6], L"twisted bilayer graphene, $\theta = %$θstr^\circ$, $L = %$Lstr$ $a$, $E = %$Estr$ meV/cell";
-      fontsize = 18, tellwidth = false)                 # over all columns, centered
+      fontsize = 22, tellwidth = false)                 # over all columns, centered
 resize_to_layout!(fig)                                  # the figure takes the size of its content
 file = @sprintf("bilayer_%.2f.png", θ)
 save(file, fig; px_per_unit = 2)
