@@ -16,7 +16,6 @@ and the energy is minimized by preconditioned LBFGS or DIIS. The method is descr
 
 - [`docs/reference.md`](docs/reference.md) documents the conventions, the method and every function.
 - [`examples/`](examples) has a twisted bilayer swept over the angle and an alternating-twist trilayer.
-- [`LAMMPS/`](LAMMPS) holds the LAMMPS [3] input script and interatomic potentials used in Ref. [1].
 
 ## Installation
 
@@ -73,8 +72,6 @@ The continuum theory implemented here is developed in
 
 [2] C. De Beule, Y. Lai, L. Peng, D. Bennett, and S. Adam,
 *Lattice relaxation in moiré heterobilayers*, [arXiv:2605.17805](https://arxiv.org/abs/2605.17805) (2026).
-
-[3] [LAMMPS Molecular Dynamics Simulator](https://www.lammps.org), for the input files in `LAMMPS/`.
 
 A paper on the package itself is in preparation; how to cite it will be added here.
 
