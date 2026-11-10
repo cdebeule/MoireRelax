@@ -166,6 +166,54 @@ function to_grid!(ws::AbstractWorkspace, u::AbstractMatrix, moire::MoireGeometry
 end
 
 """
+    scalar_to_grid!(ws, c, moire) -> Matrix
+
+The real scalar field ``2\\,\\mathrm{Re} \\sum_g c_g e^{i g \\cdot r}`` on the grid of `ws`, from one coefficient per
+stored mode (C3: per star, the same coefficient on its three modes), by one FFT in the buffers of `ws` (which it
+overwrites). For the dilation and the rotation of a field with the amplitudes `u`, use `u[:, 2f - 1] / L` and
+`u[:, 2f] / L` (reference, Conventions). Returns a new array.
+"""
+function scalar_to_grid!(ws::AbstractWorkspace, c::AbstractVector, moire::MoireGeometry)
+    (; W, D, pB) = ws
+    length(c) == length(moire.g) || throw(DimensionMismatch("one coefficient per mode: got $(length(c)) for $(length(moire.g)) modes"))
+    for m in eachindex(c), r in 1:multiplicity(ws)
+        kp, km = kpos(ws, r, m)
+        W[kp, 1], W[km, 1] = c[m], conj(c[m])
+    end
+    mul!(D, pB, W)
+    return real.(view(D, :, :, 1))
+end
+
+"""
+    grid_to_points(F, ws, moire, xs, ys) -> Matrix
+
+The values at the Cartesian points `xs` × `ys` (units L) of a periodic field given by its values `F` on the grid of `ws`
+(an N × N or N1 × N2 array, e.g. a slice of `to_grid!`, `scalar_to_grid!`, or a function of them and of `ws.ϕ0`), by
+bilinear interpolation between the grid points (`cell_coordinates`). For a grid fine enough for the field, e.g. a
+workspace with the same modes on a grid several times larger than the minimal one, the interpolation error is a small
+fraction of a percent; use it for plots and cuts, not for energies.
+"""
+function grid_to_points(F::AbstractMatrix, ws::AbstractWorkspace, moire::MoireGeometry, xs, ys)
+    size(F) == (size(ws.ϕ0, 1), size(ws.ϕ0, 2)) ||
+        throw(DimensionMismatch("F must be on the grid of ws, $(size(ws.ϕ0)), got $(size(F))"))
+    Sinv = inv(SMatrix{2,2,Float64}(ws.S))                   # grid coordinates t = S⁻¹ s (the moiré cell: S = I)
+    return [interpolate_periodic(F, Sinv * cell_coordinates(moire, SA[x, y])) for x in xs, y in ys]
+end
+grid_to_points(F::AbstractMatrix, ws::WorkspaceC3, moire::MoireGeometry, xs, ys) =
+    (size(F) == size(ws.ϕ0) || throw(DimensionMismatch("F must be on the grid of ws, $(size(ws.ϕ0)), got $(size(F))"));
+     [interpolate_periodic(F, cell_coordinates(moire, SA[x, y])) for x in xs, y in ys])
+
+# bilinear interpolation at the point t (periodic, in units of the grid: F[i, j] at t = ((i - 1)/N1, (j - 1)/N2))
+function interpolate_periodic(F, t)
+    N1, N2 = size(F)
+    t1, t2 = mod(t[1], 1) * N1, mod(t[2], 1) * N2
+    i, j = floor(Int, t1), floor(Int, t2)
+    f1, f2 = t1 - i, t2 - j
+    i0, i1, j0, j1 = mod(i, N1) + 1, mod(i + 1, N1) + 1, mod(j, N2) + 1, mod(j + 1, N2) + 1
+    return (1 - f1) * ((1 - f2) * F[i0, j0] + f2 * F[i0, j1]) + f1 * ((1 - f2) * F[i1, j0] + f2 * F[i1, j1])
+end
+
+"""
     from_grid!(dVdu, ws, moire) -> dVdu
 
 The gradient ``\\partial\\langle V\\rangle/\\partial(\\mathrm{Re}\\,u) + i\\,\\partial\\langle V\\rangle/\\partial(\\mathrm{Im}\\,u)``

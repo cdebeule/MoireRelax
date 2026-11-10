@@ -53,21 +53,22 @@ u, E_el, E_V, converged = relax_bilayer(1.0, 47352, 69518 - 47352, [4.064 / 2, -
 ```
 
 `u` holds the mode amplitudes ([Conventions](#conventions)); `to_grid!(ws, u, moire)` gives the displacement field on
-the grid of the moiré cell, and `field_synthesizer` evaluates it on any grid for plots.
+the grid of the moiré cell, and `grid_to_points` brings it, or anything computed from it, to Cartesian points for plots
+([Real-space fields](#real-space-fields)).
 
 ## Files
 
 | File | Contents |
 |---|---|
-| `src/MoireRelax.jl` | the module and its exports; the lattice (`Lattice`, `Hexagonal`) and the moiré geometry (`MoireGeometry`, `moire_matrix`, `twist_angle`); the D3 stacking potential (`VdV_fast`, `hessian`, `curvature`, `minimum_stacking`, `stiffness`); utilities (`extrapolate`, `print_params`, `coef_rows`, `field_synthesizer`); includes the files below |
+| `src/MoireRelax.jl` | the module and its exports; the lattice (`Lattice`, `Hexagonal`) and the moiré geometry (`MoireGeometry`, `moire_matrix`, `twist_angle`, `cell_coordinates`, `rigid_disregistry`); the D3 stacking potential (`VdV_fast`, `hessian`, `curvature`, `minimum_stacking`, `stiffness`); utilities (`extrapolate`, `print_params`, `coef_rows`, `field_synthesizer`); includes the files below |
 | `src/Supercells.jl` | the modes, grid and rigid disregistry of a cell of the lattice (`supercell_wavevectors`, `cell_modes`, `grid_index`, `cell_disregistry`), on which both workspaces are built; `transfer_modes`, `moire_periodic`, `supercell_fraction` |
-| `src/Workspaces.jl` | `Workspace` (also for supercells) and `WorkspaceC3`: the modes, the real-space grid of the cell and the FFTs between them (`to_grid!`, `from_grid!`); C3 orbits (`grid_orbits`); the stacking energy on the grid (`stacking_energy!`) |
+| `src/Workspaces.jl` | `Workspace` (also for supercells) and `WorkspaceC3`: the modes, the real-space grid of the cell and the FFTs between them (`to_grid!`, `from_grid!`, `scalar_to_grid!`); C3 orbits (`grid_orbits`); the stacking energy on the grid (`stacking_energy!`); interpolation of grid fields to points (`grid_to_points`) |
 | `src/Harmonic.jl` | the harmonic model of the interlayer coupling: coupling matrices (`coupling_laplacian`, `chain_laplacian`), DIIS damping (`damping!`, `damped_step!`), LBFGS change of variables (`precond`, `transform!`) |
 | `src/DIIS.jl` | DIIS (Pulay) mixing: `MixerDIIS`, `mix!`, `get_error` |
 | `src/Relax.jl` | `relax_moire`: minimization of the elastic plus stacking energy by LBFGS or DIIS; `elastic_energy`, `minimize_lbfgs`, `check_gradient` |
 | `src/Precompile.jl` | the workload run while the package is precompiled |
 | `Project.toml` | name, identifier (UUID) and dependencies of the package |
-| `examples/bilayer.jl`, `examples/trilayer.jl` | a twisted bilayer swept over the angle, and an alternating-twist trilayer relaxed layer by layer |
+| `examples/bilayer.jl`, `examples/bilayer_sweep.jl`, `examples/trilayer.jl` | a twisted bilayer at a few angles with a figure of the relaxed moiré (CairoMakie); the same swept from 2° to 0.01°, with the shells following the angle, and the Fourier components of the relaxation and the energies against the angle; an alternating-twist trilayer relaxed layer by layer; `examples/Project.toml` is their environment |
 | `docs/reference.md` | this document |
 | `test/runtests.jl` | the tests: the invariants of the method (gradients against finite differences, C3 against no symmetry, LBFGS against DIIS, a supercell against the moiré cell, the D3 potential against its Fourier series and analytic Hessian), the argument checks, reference energies, and the code-quality checks of Aqua.jl; run by `Pkg.test()` and, on GitHub, by the CI workflow on Linux, macOS and Windows |
 
@@ -115,8 +116,13 @@ $\theta$ and an isotropic lattice mismatch $\epsilon_0$ (`moire_matrix(θ, ϵ0)`
 $$M = \Big(1 + \frac{\epsilon_0}{2}\Big) R(\theta/2) - \Big(1 - \frac{\epsilon_0}{2}\Big) R(-\theta/2),$$
 
 and `twist_angle(M)` reads $\theta$ from the antisymmetric part of $M$. `MoireGeometry(M, ws)` holds the moiré length
-$L$, the mean length of the moiré lattice vectors $M^{-1} a_1$ and $M^{-1} a_2$, and the moiré reciprocal vectors
-$g = L M^\mathsf{T} b$ of the modes of `ws` (units $1/L$), such that $g \cdot r = b \cdot \phi_0$ for $r$ in units $L$.
+$L$, the mean length of the moiré lattice vectors $M^{-1} a_1$ and $M^{-1} a_2$, the moiré reciprocal vectors
+$g = L M^\mathsf{T} b$ of the modes of `ws` (units $1/L$), such that $g \cdot r = b \cdot \phi_0$ for $r$ in units $L$,
+and the matrix `G` of the moiré reciprocal lattice vectors $g_i = L M^\mathsf{T} b_i$ (columns), so that the mode
+$(n_1, n_2)$ has $g = n_1 g_1 + n_2 g_2$. From it,
+`cell_coordinates(moire, r)` gives the coordinates $s = G^\mathsf{T} r / 2\pi$ of a point $r$ (units $L$) in the moiré
+cell, with $\phi_0 = s_1 a_1 + s_2 a_2$ (the grid of a workspace is at $s_i = (k - 1)/N_i$), and
+`rigid_disregistry(moire, lattice, r)` the disregistry $\phi_0$ itself.
 
 The stacking potential of an interface has the D3 form, with $x_i = b_i \cdot \phi$:
 
@@ -159,6 +165,27 @@ symmetry), with an `ArgumentError` otherwise.
 
 `to_grid!(ws, u, moire)` returns $u_x + i u_y$ of each field on the grid (the array `ws.D`, $N \times N \times n_f$),
 and `from_grid!(dVdu, ws, moire)` turns the forces in `ws.D` into the gradient per mode.
+
+### Real-space fields
+
+The package computes the fields; the plots are the user's (the examples show how). Everything is available on the
+grid of a workspace and can be brought to any points:
+
+- `to_grid!(ws, u, moire)` gives the displacements, and any local quantity follows on the grid from them and from the
+  rigid disregistry `ws.ϕ0`, e.g. the stacking energy `V(ϕ0 + u)` at each point.
+- `scalar_to_grid!(ws, c, moire)` gives the real field $2\,\mathrm{Re} \sum_g c_g e^{i g \cdot r}$ of one coefficient
+  per stored mode (C3: per star): with `c = u[:, 2f - 1] / L` the dilation $\nabla \cdot u_f$ and with
+  `c = u[:, 2f] / L` the rotation $\hat z \cdot \nabla \times u_f$ of a field, so that $\theta + \tfrac12 \hat z
+  \cdot \nabla \times u$ is the local twist angle of a bilayer with $u = u_1 - u_2$.
+- `grid_to_points(F, ws, moire, xs, ys)` interpolates any such grid array `F` (bilinear, periodic) to the Cartesian
+  points `xs` × `ys` (units $L$), using `cell_coordinates`; a supercell grid is handled through `ws.S`. For smooth
+  maps, use a workspace with the same modes on a finer grid, e.g. `WorkspaceC3(N_shell, nf, 192)`: with 4 to 6 grid
+  points per shell, the interpolation is accurate to a few $10^{-4}$ of the field's range.
+- `field_synthesizer(moire, xs, ys)` sums the modes directly at the points, exact but slower for many modes; it takes
+  one coefficient per mode of `moire`, so a C3 solution must first be expanded to its stars.
+
+`examples/bilayer.jl` uses these for the stacking energy, the displacement with its direction and the local twist angle
+of a relaxed bilayer.
 
 `make_bvecs(N_shell)` lists the representative b vectors: $(n_1, n_2)$ rotated by $0$, $2\pi/3$, $4\pi/3$; the $6s$
 vectors $\pm g$ of shell $s$ have $\max(|n_1|, |n_2|, |n_1 - n_2|) = s$. The shells come in increasing order, so the
@@ -230,7 +257,7 @@ A supercell of the moiré cell lets the relaxation break the moiré translations
 the moiré lattice vectors $L_1 = M^{-1} a_1$, $L_2 = M^{-1} a_2$ (60° apart): $A_j = S_{1j} L_1 + S_{2j} L_2$, and
 $\det S$ is the number of moiré cells. `S = nothing` (the default) is the moiré cell as before.
 
-- Modes: the reciprocal vectors of the supercell are $x_1 G_1 + x_2 G_2$, with $G_i = M^\mathsf{T} b_i$ the moiré
+- Modes: the reciprocal vectors of the supercell are $x_1 g_1 + x_2 g_2$, with $g_i = M^\mathsf{T} b_i$ the moiré
   reciprocal vectors and $x = S^{-\mathsf{T}} m$ for integers $m$: the moiré reciprocal vectors ($x$ integer) and the
   fractional ones between them. `ws.bvecs` holds $x$ (floats), one of each $\pm g$, all those within `N_shell` shells of the moiré reciprocal
   lattice (the resolution of the moiré cell), ordered by shell (`supercell_wavevectors(lattice, S, N_shell)` returns $m$

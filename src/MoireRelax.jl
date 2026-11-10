@@ -18,6 +18,7 @@ export coupling_laplacian, chain_laplacian, coupling_modes, damping!, damped_ste
 export MixerDIIS, mix!, get_error
 export relax_moire, elastic_energy, minimize_lbfgs, check_gradient
 export supercell_wavevectors, transfer_modes, moire_periodic, supercell_fraction, field_synthesizer
+export scalar_to_grid!, grid_to_points, cell_coordinates, rigid_disregistry
 
 ### Lattice
 
@@ -98,13 +99,17 @@ abstract type AbstractWorkspace end
 
 The moiré of the relative deformation `M` of two layers (`moire_matrix`), on the modes of the workspace `ws` or of the
 reciprocal coordinates `bvecs` (e.g. those saved with a run): the moiré length `L`, the mean length of the moiré lattice
-vectors ``M^{-1} a_1``, ``M^{-1} a_2`` (units a), and the moiré reciprocal vectors `g` ``= L M^\\mathsf{T} b`` of the modes
-as ``g_x + i g_y`` (units 1/L), with `invdotgg` ``= 1/|g|^2``. With `WorkspaceC3`, `M` must be a scaling times a rotation.
+vectors ``M^{-1} a_1``, ``M^{-1} a_2`` (units a); the moiré reciprocal vectors `g` ``= L M^\\mathsf{T} b`` of the modes
+as ``g_x + i g_y`` (units 1/L), with `invdotgg` ``= 1/|g|^2``; and `G`, the matrix whose columns are the moiré
+reciprocal lattice vectors ``g_i = L M^\\mathsf{T} b_i`` (units 1/L), so that ``g_i \\cdot r = b_i \\cdot \\phi_0`` for a
+point `r` (units L) with the rigid disregistry ``\\phi_0 = M r`` (`cell_coordinates`). With `WorkspaceC3`, `M` must be
+a scaling times a rotation.
 """
 struct MoireGeometry{T}
     L::T                    # mean length of the moiré lattice vectors M⁻¹a1, M⁻¹a2 (units a)
     g::Vector{Complex{T}}   # g_x + i g_y of the moiré reciprocal vectors (units 1/L)
     invdotgg::Vector{T}     # 1/|g|²
+    G::SMatrix{2,2,T,4}     # columns: the moiré reciprocal lattice vectors g_i = L Mᵀ bᵢ (units 1/L)
 end
 
 function MoireGeometry(M::AbstractMatrix, ws::AbstractWorkspace)
@@ -112,10 +117,32 @@ function MoireGeometry(M::AbstractMatrix, ws::AbstractWorkspace)
         throw(ArgumentError("C3 symmetry requires M = scaling × rotation (twist and isotropic mismatch)"))
     (a1, a2), (b1, b2) = lattice_vectors(ws.lattice), reciprocal_vectors(ws.lattice)
     L = (norm(M \ a1) + norm(M \ a2)) / 2
+    G = L * SMatrix{2,2}(transpose(M)) * [b1 b2]
     bx = ws.bvecs[1, :] * b1[1] + ws.bvecs[2, :] * b2[1]
     by = ws.bvecs[1, :] * b1[2] + ws.bvecs[2, :] * b2[2]
     g = @. L * complex(M[1, 1] * bx + M[2, 1] * by, M[1, 2] * bx + M[2, 2] * by) # L Mᵀb
-    return MoireGeometry(L, g, @. 1 / abs2(g))
+    return MoireGeometry(L, g, (@. 1 / abs2(g)), G)
+end
+
+"""
+    cell_coordinates(moire, r) -> s
+
+The coordinates ``s = (s_1, s_2)`` in the moiré cell of the point `r` (units L): the rigid disregistry there is
+``\\phi_0 = s_1 a_1 + s_2 a_2``, and the grid of a workspace holds the points ``s_i = (k - 1)/N_i``, ``k = 1, \\dots,
+N_i`` (for a supercell, the grid coordinates are ``t = S^{-1} s``). Integer shifts of `s` are the same point of the
+cell.
+"""
+cell_coordinates(moire::MoireGeometry, r) = transpose(moire.G) * SVector{2}(r) / 2π
+
+"""
+    rigid_disregistry(moire, lattice, r)
+
+The rigid disregistry ``\\phi_0 = M r = s_1 a_1 + s_2 a_2`` (units a) at the point `r` (units L) of the moiré, for the
+lattice vectors of `lattice` (`cell_coordinates`).
+"""
+function rigid_disregistry(moire::MoireGeometry, lat::Lattice, r)
+    s, (a1, a2) = cell_coordinates(moire, r), lattice_vectors(lat)
+    return s[1] * a1 + s[2] * a2
 end
 
 MoireGeometry(M::AbstractMatrix, bvecs::AbstractMatrix{<:Real}; lattice::Lattice = Hexagonal()) =

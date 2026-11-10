@@ -1,0 +1,16 @@
+# The environment of the examples: the package itself (from the parent folder) and the plotting package.
+# Run `julia --project=examples -e 'using Pkg; Pkg.instantiate()'` once from the repository root (Julia 1.11 or later;
+# on Julia 1.10, use `Pkg.develop(path = "."); Pkg.add("CairoMakie")` in this environment instead of instantiate).
+
+[deps]
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+MoireRelax = "2e73559a-888f-4f9c-a7e2-5eba2b9ee14e"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+
+[sources]
+MoireRelax = {path = ".."}
+
+[compat]
+CairoMakie = "0.15, 0.16"

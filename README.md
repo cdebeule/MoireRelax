@@ -15,7 +15,10 @@ of the cell, the stacking energy is evaluated on a real-space grid of the cell u
 and the energy is minimized by preconditioned LBFGS or DIIS. The method is described in Refs. [1] and [2].
 
 - [`docs/reference.md`](docs/reference.md) documents the conventions, the method and every function.
-- [`examples/`](examples) has a twisted bilayer swept over the angle and an alternating-twist trilayer.
+- [`examples/`](examples) has a twisted bilayer at a few angles with a figure of the relaxed moiré, the same swept
+  from 2° to 0.01° with the Fourier components of the relaxation and the energies against the angle, and an
+  alternating-twist trilayer. The package computes the fields and brings them to any points; the figures are made by
+  the user, and the bilayer examples show how, with CairoMakie.
 
 ## Installation
 
@@ -26,13 +29,14 @@ using Pkg
 Pkg.add(url = "https://github.com/cdebeule/MoireRelax")
 ```
 
-Or clone the repository and run the examples in the package's own environment:
+Or clone the repository and run the examples in their environment, which adds CairoMakie for the figures (Julia 1.11
+or later for `instantiate`; on 1.10, `Pkg.develop(path = "."); Pkg.add("CairoMakie")` in that environment instead):
 
 ```sh
 git clone https://github.com/cdebeule/MoireRelax
 cd MoireRelax
-julia --project=. -e 'using Pkg; Pkg.instantiate()'
-julia -t auto --project=. examples/bilayer.jl
+julia --project=examples -e 'using Pkg; Pkg.instantiate()'
+julia -t auto --project=examples examples/bilayer.jl
 ```
 
 Start Julia with threads (`-t auto`): the grid points of the stacking energy are shared out between them.
