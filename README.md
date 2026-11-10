@@ -1,41 +1,45 @@
 # MoireRelax
 
-Lattice relaxation in moiré materials with continuum elasticity theory.
+A Julia package for lattice relaxation in moiré materials with continuum elasticity theory.
 
-- **`julia/MoireCore`** — a Julia package that relaxes the in-plane displacements of the layers of a moiré of
-  monolayers with hexagonal symmetry (graphene, hBN, transition-metal dichalcogenides, …): it minimizes the elastic
-  energy of the layers plus the stacking energy of their interfaces, for any number of layers (twisted bilayers,
-  trilayers, stacks), with or without C3 symmetry, on the moiré cell or on a supercell of it. The displacements are
-  expanded in the moiré reciprocal vectors, the stacking energy is evaluated on a real-space grid using the fast
-  Fourier transform (FFT), and the energy is minimized by preconditioned LBFGS or DIIS. Its
-  [README](julia/MoireCore/README.md) documents the conventions, the method and every function; `examples/` has a
-  twisted bilayer and a trilayer.
-- **`LAMMPS/`** — LAMMPS [3] input script and interatomic potentials used in Ref. [1].
+MoireRelax relaxes the in-plane displacements of the layers of a moiré of monolayers with hexagonal symmetry
+(graphene, hBN, transition-metal dichalcogenides, …): it minimizes the elastic energy of the layers plus the stacking
+energy of their interfaces, for any number of layers (twisted bilayers, trilayers, stacks), with or without C3
+symmetry. The relaxation is computed on one moiré cell with periodic boundary conditions, or on a supercell of several
+moiré cells for relaxations that break the moiré periodicity: the displacements are expanded in the reciprocal vectors
+of the cell, the stacking energy is evaluated on a real-space grid of the cell using the fast Fourier transform (FFT),
+and the energy is minimized by preconditioned LBFGS or DIIS. The method is described in Refs. [1] and [2].
+
+- [`docs/reference.md`](docs/reference.md) documents the conventions, the method and every function.
+- [`examples/`](examples) has a twisted bilayer swept over the angle and an alternating-twist trilayer.
+- [`LAMMPS/`](LAMMPS) holds the LAMMPS [3] input script and interatomic potentials used in Ref. [1].
 
 ## Installation
 
-MoireCore needs Julia 1.10 or later (tested on Julia 1.13 with Optim 2.3). In Julia:
+MoireRelax needs Julia 1.10 or later (tested on Julia 1.13 with Optim 2.3). In Julia:
 
 ```julia
 using Pkg
-Pkg.add(url = "https://github.com/cdebeule/MoireRelax", subdir = "julia/MoireCore")
+Pkg.add(url = "https://github.com/cdebeule/MoireRelax")
 ```
 
 Or clone the repository and run the examples in the package's own environment:
 
 ```sh
 git clone https://github.com/cdebeule/MoireRelax
-cd MoireRelax/julia/MoireCore
+cd MoireRelax
 julia --project=. -e 'using Pkg; Pkg.instantiate()'
 julia -t auto --project=. examples/bilayer.jl
 ```
 
+Start Julia with threads (`-t auto`): the grid points of the stacking energy are shared out between them.
+
 ## Example
 
-Twisted bilayer graphene at 1°, relaxed with C3 symmetry:
+Twisted bilayer graphene at 1°, relaxed with C3 symmetry on the moiré cell:
 
 ```julia
-using MoireCore, StaticArrays
+using MoireRelax, StaticArrays
 
 θ = 1.0                                             # twist angle (degrees)
 μ, λ = 47352.0, 69518.0 - 47352.0                   # Lamé constants of graphene (meV per cell)
@@ -55,7 +59,9 @@ D = to_grid!(ws, u, moire)                          # u_x + i u_y on the grid of
 This prints the elastic and stacking energies per cell (`E_el = 1.219`, `E_V = -2.738` meV) and returns the mode
 amplitudes `u`; `examples/bilayer.jl` sweeps the angle and `examples/trilayer.jl` does the same for three layers.
 
-## References
+## Citation
+
+If you use this code, please cite
 
 [1] C. De Beule, G. N. Pallewela, M. M. Al Ezzi, L. Peng, E. J. Mele, and S. Adam,
 *Theory for lattice relaxation in marginally twisted bilayers*, [arXiv:2503.19162](https://arxiv.org/abs/2503.19162) (2025).

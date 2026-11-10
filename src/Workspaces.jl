@@ -1,7 +1,8 @@
 # Workspaces without symmetry (Workspace, also for supercells) and with C3 symmetry (WorkspaceC3): the modes, the
 # real-space grid of the cell, the FFTs between them and the stacking energy on the grid (C3, supercells: README.md)
 
-struct Workspace{T,B,NI,PB,PF} <: AbstractWorkspace
+struct Workspace{LAT<:Lattice,T,B,NI,PB,PF} <: AbstractWorkspace
+    lattice::LAT                    # the monolayer lattice
     nf::Int                         # number of displacement fields on the grid
     S::Matrix{Int}                  # supercell vectors (columns) in units of the moiré lattice vectors; I: moiré cell
     bvecs::Matrix{B}                # moiré reciprocal coordinates (n1, n2) of the representative wavevectors
@@ -16,7 +17,8 @@ struct Workspace{T,B,NI,PB,PF} <: AbstractWorkspace
 end
 
 # with C3 symmetry: one mode per star {g, Rg, R²g} and one grid point per C3 orbit (README)
-struct WorkspaceC3{T,PB,PF} <: AbstractWorkspace
+struct WorkspaceC3{LAT<:Lattice,T,PB,PF} <: AbstractWorkspace
+    lattice::LAT                    # the monolayer lattice
     nf::Int                         # number of displacement fields on the grid
     bvecs::Matrix{Int}              # one representative (n1, n2) per star {g, Rg, R²g}
     N::Int                          # grid points per direction
@@ -33,40 +35,41 @@ end
 const ω3 = (complex(1.0), cis(2π / 3), cis(4π / 3))   # phases of u_x + i u_y at R^(r-1) g, r = 1, 2, 3
 
 """
-    Workspace(N_shell, nf, N = 0; S = nothing, pad = 1, flags = FFTW.MEASURE, fft_threads = 1)
-    WorkspaceC3(N_shell, nf, N = 0; pad = 1, flags = FFTW.MEASURE, fft_threads = 1)
+    Workspace(N_shell, nf, N = 0; lattice = Hexagonal(), S = nothing, pad = 1, flags = FFTW.MEASURE, fft_threads = 1)
+    WorkspaceC3(N_shell, nf, N = 0; lattice = Hexagonal(), pad = 1, flags = FFTW.MEASURE, fft_threads = 1)
 
-Modes of `N_shell` hexagonal shells (WorkspaceC3: one per star) and an N × N grid for `nf` fields. Without `N`, the
-grid is the smallest FFT-friendly size ≥ pad (2N_shell + 1); pad = 1.5 to 2 reduces aliasing at small angles (README).
-With a supercell S (Workspace only; columns: the supercell vectors in units of the moiré lattice vectors), the modes
-within N_shell shells of the moiré reciprocal lattice, by shell, and an N1 × N2 grid of the supercell (README,
-Supercells).
+Modes of `N_shell` shells of the lattice (WorkspaceC3: one per star) and an N × N grid for `nf` fields. Without `N`,
+the grid is the smallest FFT-friendly size ≥ pad (2N_shell + 1); pad = 1.5 to 2 reduces aliasing at small angles
+(README). With a supercell S (Workspace only; columns: the supercell vectors in units of the moiré lattice vectors),
+the modes within N_shell shells of the moiré reciprocal lattice, by shell, and an N1 × N2 grid of the supercell
+(README, Supercells).
 """
-function Workspace(N_shell::Integer, nf::Integer, N::Integer = 0; S = nothing, kw...)
-    Smat, bvecs, Ns, kp, km, ϕ0, W, D, pB, pF = workspace_fields(1, N_shell, nf, N, S; kw...)
-    return Workspace(nf, Smat, bvecs, S === nothing ? Ns[1] : Ns, vec(kp), vec(km), ϕ0, W, D, pB, pF)
+function Workspace(N_shell::Integer, nf::Integer, N::Integer = 0; lattice::Lattice = Hexagonal(), S = nothing, kw...)
+    Smat, bvecs, Ns, kp, km, ϕ0, W, D, pB, pF = workspace_fields(1, lattice, N_shell, nf, N, S; kw...)
+    return Workspace(lattice, nf, Smat, bvecs, S === nothing ? Ns[1] : Ns, vec(kp), vec(km), ϕ0, W, D, pB, pF)
 end
 
-# as Workspace, with the representatives bvecs[:, 1:3:end] of make_bvecs (same order of the stars)
-function WorkspaceC3(N_shell::Integer, nf::Integer, N::Integer = 0; kw...)
-    _, bvecs, Ns, kp, km, ϕ0, W, D, pB, pF = workspace_fields(3, N_shell, nf, N, nothing; kw...)
-    return WorkspaceC3(nf, bvecs, Ns[1], kp, km, ϕ0, W, D, pB, pF, grid_orbits(Ns[1]))
+# as Workspace, with the representatives bvecs[:, 1:3:end] of cell_wavevectors (same order of the stars)
+function WorkspaceC3(N_shell::Integer, nf::Integer, N::Integer = 0; lattice::Lattice = Hexagonal(), kw...)
+    _, bvecs, Ns, kp, km, ϕ0, W, D, pB, pF = workspace_fields(3, lattice, N_shell, nf, N, nothing; kw...)
+    return WorkspaceC3(lattice, nf, bvecs, Ns[1], kp, km, ϕ0, W, D, pB, pF, grid_orbits(lattice, Ns[1]))
 end
 
-# fields of both workspaces: the modes and grid of the cell (Supercells.jl), one mode in nrot (1 or 3) of make_bvecs,
-# with the array positions kp[r, m], km[r, m] of ±R^(r-1) g_m for r = 1, …, nrot
-function workspace_fields(nrot, N_shell, nf, N, S; pad::Real = 1, flags = FFTW.MEASURE, fft_threads::Integer = 1)
+# fields of both workspaces: the modes and grid of the cell (Supercells.jl), one mode in nrot (1 or 3) of
+# cell_wavevectors, with the array positions kp[r, m], km[r, m] of ±R^(r-1) g_m for r = 1, …, nrot
+function workspace_fields(nrot, lat, N_shell, nf, N, S; pad::Real = 1, flags = FFTW.MEASURE, fft_threads::Integer = 1)
     S === nothing || nrot == 1 || error("WorkspaceC3 is for the moiré cell only: use Workspace(N_shell, nf; S)")
     Smat = S === nothing ? [1 0; 0 1] : Matrix{Int}(S)
-    m, bvecs, Ns = cell_modes(N_shell, S, N, pad)
+    m, bvecs, Ns = cell_modes(lat, N_shell, S, N, pad)
     m, bvecs = m[:, 1:nrot:end], bvecs[:, 1:nrot:end]
+    R = reciprocal_rotation(lat)    # the rotation by 2π/3 of the wavevectors (n1, n2)
     kp = Matrix{CartesianIndex{2}}(undef, nrot, size(m, 2))
     km = similar(kp)
     for k in axes(m, 2)
-        n1, n2 = m[1, k], m[2, k]
+        n = SA[m[1, k], m[2, k]]
         for r in 1:nrot
-            kp[r, k], km[r, k] = grid_index(n1, n2, Ns), grid_index(-n1, -n2, Ns)
-            n1, n2 = -n2, n1 - n2 # rotation by 2π/3
+            kp[r, k], km[r, k] = grid_index(n[1], n[2], Ns), grid_index(-n[1], -n[2], Ns)
+            n = R * n
         end
     end
     @assert allunique([vec(kp); vec(km)]) "grid $Ns too small: need N > 2 n_max"
@@ -75,7 +78,7 @@ function workspace_fields(nrot, N_shell, nf, N, S; pad::Real = 1, flags = FFTW.M
     pB = plan_bfft(W, (1, 2); flags, num_threads = fft_threads)
     pF = plan_fft!(D, (1, 2); flags, num_threads = fft_threads)
     fill!(W, 0) # planning may overwrite W
-    return Smat, bvecs, Ns, kp, km, cell_disregistry(Smat, Ns), W, D, pB, pF
+    return Smat, bvecs, Ns, kp, km, cell_disregistry(lat, Smat, Ns), W, D, pB, pF
 end
 
 # representative b vectors: (n1, n2) rotated by 0, 2π/3, 4π/3; shell s has max(|n1|, |n2|, |n1 - n2|) = s
@@ -95,17 +98,19 @@ multiplicity(::WorkspaceC3) = 3
 kpos(ws::Workspace, r, m) = ws.kp[m], ws.km[m]
 kpos(ws::WorkspaceC3, r, m) = ws.kp[r, m], ws.km[r, m]
 
-# C3 orbits of the N × N grid: orb[r, k] is the linear index of R^(r-1) p_k, p_k the first point of orbit k (README)
-function grid_orbits(N::Integer)
+# C3 orbits of the N × N grid of the lattice: orb[r, k] is the linear index of R^(r-1) p_k, p_k the first point of
+# orbit k (README)
+function grid_orbits(lat::Lattice, N::Integer)
+    R = rotation(lat)   # the rotation by 2π/3 of the grid points (i1, i2)
     seen = falses(N, N)
     orb = Int[]
     for j2 in 0:N-1, j1 in 0:N-1
         seen[j1+1, j2+1] && continue
-        i1, i2 = j1, j2
+        i = SA[j1, j2]
         for _ in 1:3
-            seen[i1+1, i2+1] = true
-            push!(orb, i1 + 1 + N * i2)
-            i1, i2 = mod(-i1 - i2, N), i1
+            seen[i[1]+1, i[2]+1] = true
+            push!(orb, i[1] + 1 + N * i[2])
+            i = mod.(R * i, N)
         end
     end
     return reshape(orb, 3, :)

@@ -1,48 +1,33 @@
-# MoireCore
+# MoireRelax: reference
 
-MoireCore relaxes the in-plane displacements of the layers of a moiré of monolayers with hexagonal symmetry
-(graphene, hBN, transition-metal dichalcogenides, …): it minimizes their elastic energy plus the
-stacking energy of the interfaces, by LBFGS or DIIS, with the displacements expanded in the moiré reciprocal vectors
-and the stacking energy evaluated on a real-space grid of the moiré cell (FFTs). It handles any number of layers and
-interfaces (bilayers, trilayers, stacks), with or without C3 symmetry, and supercells of the moiré cell
-([Supercells](#supercells)), in which the relaxation can break the moiré translations. The method is described in
-[Refs. 1 and 2](../../README.md#references).
+MoireRelax relaxes the in-plane displacements of the layers of a moiré of monolayers with hexagonal symmetry
+(graphene, hBN, transition-metal dichalcogenides, …): it minimizes their elastic energy plus the stacking energy of
+the interfaces, by LBFGS or DIIS. The relaxation is computed on one moiré cell with periodic boundary conditions, or
+on a supercell of several moiré cells ([Supercells](#supercells)), in which the relaxation can break the moiré
+translations: the displacements are expanded in the reciprocal vectors of the cell, and the stacking energy is
+evaluated on a real-space grid of the cell (FFTs). It handles any number of layers and interfaces (bilayers,
+trilayers, stacks), with or without C3 symmetry. The method is described in
+[Refs. 1 and 2](../README.md#citation).
 
-The comments in the code are kept to one line; the longer explanations are collected here. The equations are LaTeX,
-which GitHub typesets.
+This document is the reference of the package: its conventions, the method behind each part and every function. The
+comments in the code are kept to one line; the longer explanations are collected here. The equations are LaTeX, which
+GitHub typesets. For the installation and a first example, see the [README](../README.md).
 
-**Contents:** [Installation and usage](#installation-and-usage) · [Files](#files) · [Conventions](#conventions) ·
+**Contents:** [Usage](#usage) · [Files](#files) · [Conventions](#conventions) ·
 [Geometry and stacking potential](#geometry-and-stacking-potential) · [Workspaces](#workspaces) ·
 [Supercells](#supercells) · [Harmonic model](#harmonic-model-of-the-interlayer-coupling) · [Solvers](#solvers) ·
 [Precompilation](#precompilation)
 
-## Installation and usage
+## Usage
 
-MoireCore needs Julia 1.10 or later (tested on Julia 1.13 with Optim 2.3). It is not in Julia's package registry;
-add it to an environment from this repository,
-
-```julia
-using Pkg
-Pkg.add(url = "https://github.com/cdebeule/MoireRelax", subdir = "julia/MoireCore")
-```
-
-or, to work on a local copy, `Pkg.develop(path = "path/to/MoireRelax/julia/MoireCore")`. To run the examples in
-`examples/` without installing anything else, use the package's own environment:
-
-```sh
-cd MoireRelax/julia/MoireCore
-julia --project=. -e 'using Pkg; Pkg.instantiate()'    # once
-julia -t auto --project=. examples/bilayer.jl
-```
-
-Scripts load the package with `using MoireCore`. Start Julia with threads (`julia -t auto`, or `-t 8`): the threads
+Scripts load the package with `using MoireRelax`. Start Julia with threads (`julia -t auto`, or `-t 8`): the threads
 share out the grid points of the stacking energy (`stacking_energy!`).
 
-At the first `using MoireCore` (and again after a change of its files), Julia compiles the package, about 35 s, with a
-workload that runs the solvers ([Precompilation](#precompilation)). Later runs load the compiled code: `using MoireCore`
-takes about 1 s and the first `relax_moire` about 1 s, most of it for the script's own `potential!`, which is still
-compiled in each run. In an interactive session, `using Revise` before `using MoireCore` applies changes of the files
-without restarting Julia.
+At the first `using MoireRelax` (and again after a change of its files), Julia compiles the package, about 35 s, with
+a workload that runs the solvers ([Precompilation](#precompilation)). Later runs load the compiled code:
+`using MoireRelax` takes about 1 s and the first `relax_moire` about 1 s, most of it for the script's own
+`potential!`, which is still compiled in each run. In an interactive session, `using Revise` before `using MoireRelax`
+applies changes of the files without restarting Julia.
 
 ### Example
 
@@ -50,7 +35,7 @@ A twisted bilayer, relaxed with C3 symmetry; `examples/bilayer.jl` sweeps the an
 `examples/trilayer.jl` relaxes the three layers of an alternating-twist trilayer:
 
 ```julia
-using MoireCore, StaticArrays
+using MoireRelax, StaticArrays
 
 # relaxation of a twisted bilayer of two equal layers at the angle θ (degrees), with C3 symmetry
 function relax_bilayer(θ, μ, λ, Vg; N_shell = 30, solver = :lbfgs)
@@ -74,8 +59,8 @@ the grid of the moiré cell, and `field_synthesizer` evaluates it on any grid fo
 
 | File | Contents |
 |---|---|
-| `src/MoireCore.jl` | the module and its exports; lattice and moiré geometry (`MoireGeometry`, `moire_matrix`, `twist_angle`); the D3 stacking potential (`VdV_fast`, `hessian`, `curvature`, `minimum_stacking`, `stiffness`); utilities (`extrapolate`, `print_params`, `coef_rows`, `field_synthesizer`); includes the files below |
-| `src/Supercells.jl` | the modes, grid and rigid disregistry of a cell (`supercell_wavevectors`, `cell_modes`, `grid_index`, `cell_disregistry`), on which both workspaces are built; `transfer_modes`, `moire_periodic`, `supercell_fraction` |
+| `src/MoireRelax.jl` | the module and its exports; the lattice (`Lattice`, `Hexagonal`) and the moiré geometry (`MoireGeometry`, `moire_matrix`, `twist_angle`); the D3 stacking potential (`VdV_fast`, `hessian`, `curvature`, `minimum_stacking`, `stiffness`); utilities (`extrapolate`, `print_params`, `coef_rows`, `field_synthesizer`); includes the files below |
+| `src/Supercells.jl` | the modes, grid and rigid disregistry of a cell of the lattice (`supercell_wavevectors`, `cell_modes`, `grid_index`, `cell_disregistry`), on which both workspaces are built; `transfer_modes`, `moire_periodic`, `supercell_fraction` |
 | `src/Workspaces.jl` | `Workspace` (also for supercells) and `WorkspaceC3`: the modes, the real-space grid of the cell and the FFTs between them (`to_grid!`, `from_grid!`); C3 orbits (`grid_orbits`); the stacking energy on the grid (`stacking_energy!`) |
 | `src/Harmonic.jl` | the harmonic model of the interlayer coupling: coupling matrices (`coupling_laplacian`, `chain_laplacian`), DIIS damping (`damping!`, `damped_step!`), LBFGS change of variables (`precond`, `transform!`) |
 | `src/DIIS.jl` | DIIS (Pulay) mixing: `MixerDIIS`, `mix!`, `get_error` |
@@ -83,10 +68,19 @@ the grid of the moiré cell, and `field_synthesizer` evaluates it on any grid fo
 | `src/Precompile.jl` | the workload run while the package is precompiled |
 | `Project.toml` | name, identifier (UUID) and dependencies of the package |
 | `examples/bilayer.jl`, `examples/trilayer.jl` | a twisted bilayer swept over the angle, and an alternating-twist trilayer relaxed layer by layer |
+| `docs/reference.md` | this document |
 
 ## Conventions
 
 - lengths in $a$ (the lattice constant, or the mean one of two materials), energies in meV per monolayer cell
+- the cell: the relaxation is periodic with the moiré cell (or with a supercell of it), so the displacement fields are
+  Fourier series in the reciprocal vectors of the cell, cut off at `N_shell` shells, and all averages $\langle \cdot \rangle$
+  are over the cell; energies are given per monolayer cell, so they compare between cells
+- the lattice: the monolayer lattice is a type (`Lattice`) that the workspace carries (`ws.lattice`), and everything
+  that depends on it, the lattice and reciprocal vectors (`lattice_vectors`, `reciprocal_vectors`), the cell area
+  (`cell_area`), the shells of the reciprocal vectors and the rotation of `WorkspaceC3`, asks the lattice; the rest of
+  the package works per mode and per grid point. `Hexagonal()`, the default, is the lattice of graphene, hBN and the
+  transition-metal dichalcogenides, and the only one provided; the D3 stacking potential below is its
 - displacements and moiré wavevectors in complex notation $v = v_x + i v_y$, with $g$ in units $1/L$; the lattice
   vectors and the disregistry $\phi$ are real 2-vectors (`SVector{2}`)
 - fields: the $n_f$ displacement fields $u_f$ ($f = 1, \dots, n_f$) that the solver relaxes: the layer displacements of
@@ -106,9 +100,12 @@ the grid of the moiré cell, and `field_synthesizer` evaluates it on any grid fo
 
 ## Geometry and stacking potential
 
-The monolayer lattice vectors are $a_1 = (-1/2, \sqrt{3}/2)$ and $a_2 = (-1, 0)$ (zigzag along $x$), and the reciprocal
-vectors $b_1 = (0, 4\pi/\sqrt{3})$ and $b_2 = (-2\pi, -2\pi/\sqrt{3})$, with $b_i \cdot a_j = 2\pi \delta_{ij}$ (`a1`,
-`a2`, `b1`, `b2`); the area of the cell is $A_\mathrm{cell} = \sqrt{3}/2$ (`Acell`).
+The lattice vectors of `Hexagonal()` are $a_1 = (-1/2, \sqrt{3}/2)$ and $a_2 = (-1, 0)$ (zigzag along $x$), and its
+reciprocal vectors $b_1 = (0, 4\pi/\sqrt{3})$ and $b_2 = (-2\pi, -2\pi/\sqrt{3})$, with $b_i \cdot a_j = 2\pi \delta_{ij}$
+(`lattice_vectors`, `reciprocal_vectors`; also the constants `a1`, `a2`, `b1`, `b2`); the area of the cell is
+$A_\mathrm{cell} = \sqrt{3}/2$ (`cell_area`, `Acell`). The lattice also defines the shells of its reciprocal vectors,
+shell $s$ having $\max(|n_1|, |n_2|, |n_1 - n_2|) = s$ (`shell`), their list by shell (`cell_wavevectors`), and the
+rotation by $2\pi/3$ in the basis $a_1, a_2$ (`rotation`; `reciprocal_rotation` in the basis $b_1, b_2$).
 
 The moiré follows from the relative deformation $M$ of two layers: the rigid disregistry is $\phi_0 = M r$. For a twist
 $\theta$ and an isotropic lattice mismatch $\epsilon_0$ (`moire_matrix(θ, ϵ0)`, angles in degrees),
@@ -141,13 +138,15 @@ $c_3 = \operatorname{Re} V_3$, $p_1 = \operatorname{Im} V_1$, $p_3 = \operatorna
 
 ## Workspaces
 
-`Workspace(N_shell, nf, N = 0; S = nothing, pad = 1, flags = FFTW.MEASURE, fft_threads = 1)` holds the modes of
-`N_shell` hexagonal shells and an $N \times N$ grid for `nf` fields (with a supercell `S`: [Supercells](#supercells)). Without `N`, the grid is the smallest FFT-friendly size
+`Workspace(N_shell, nf, N = 0; lattice = Hexagonal(), S = nothing, pad = 1, flags = FFTW.MEASURE, fft_threads = 1)`
+holds the modes of `N_shell` shells of the lattice and an $N \times N$ grid for `nf` fields (with a supercell `S`:
+[Supercells](#supercells)). Without `N`, the grid is the smallest FFT-friendly size
 $\ge \mathrm{pad} (2 N_\mathrm{shell} + 1)$: `pad = 1` is the minimal grid; `pad = 1.5` to `2` reduces the aliasing of
 the nonlinear forces onto the modes, which matters for sharp domain walls (small angles). `WorkspaceC3` takes the same
 arguments. `flags = FFTW.MEASURE` (the default) lets FFTW choose its algorithm by timing, so two runs can differ at
-the level of $10^{-16}$; `flags = FFTW.ESTIMATE` makes them reproducible, at the same speed within noise. Scripts use the fields `ws.N`, `ws.nf`, `ws.bvecs`, `ws.ϕ0` (the rigid disregistry
-$s_1 a_1 + s_2 a_2$ on the grid) and, with C3, `ws.orb`.
+the level of $10^{-16}$; `flags = FFTW.ESTIMATE` makes them reproducible, at the same speed within noise. Scripts use
+the fields `ws.lattice`, `ws.N`, `ws.nf`, `ws.bvecs`, `ws.ϕ0` (the rigid disregistry $s_1 a_1 + s_2 a_2$ on the grid)
+and, with C3, `ws.orb`.
 
 `to_grid!(ws, u, moire)` returns $u_x + i u_y$ of each field on the grid (the array `ws.D`, $N \times N \times n_f$),
 and `from_grid!(dVdu, ws, moire)` turns the forces in `ws.D` into the gradient per mode.
@@ -168,9 +167,9 @@ C3 symmetry requires $M$ = scaling × rotation (twist and isotropic mismatch), w
 amplitude is shared by the three modes of its star (`multiplicity(ws) = 3`): the elastic energy counts it three times,
 and the derivative of $\langle V \rangle$ with respect to it is 3 times the per-mode gradient from `from_grid!`.
 
-`grid_orbits(N)` returns the C3 orbits of the $N \times N$ grid: `orb[r, k]` is the linear index of $R^{r-1} p_k$, with
+`grid_orbits(lattice, N)` returns the C3 orbits of the $N \times N$ grid: `orb[r, k]` is the linear index of $R^{r-1} p_k$, with
 $p_k$ the first point of orbit $k$ and $R: (i_1, i_2) \mapsto (-i_1 - i_2, i_1) \bmod N$ the rotation by $2\pi/3$ of
-$s_1 a_1 + s_2 a_2$. The points that $R$ leaves fixed (the origin, and $(N/3, N/3)$ and $(2N/3, 2N/3)$ when 3 divides
+$s_1 a_1 + s_2 a_2$ (`rotation(lattice)`). The points that $R$ leaves fixed (the origin, and $(N/3, N/3)$ and $(2N/3, 2N/3)$ when 3 divides
 $N$) are orbits of one point, whose index appears three times in their column of `orb`. `stacking_energy!` counts them
 once and keeps their unrotated force.
 
@@ -252,7 +251,7 @@ along $L_1$ ($S = [p\ {-q};\ 0\ \ 2q]$, $\det S = 2pq$), e.g. $1 \times \sqrt 3$
 - `MoireGeometry(M, bvecs)`: the geometry of modes given by their reciprocal coordinates, e.g. those saved with a run
 - `field_synthesizer(moire, xs, ys)`: the function $c \mapsto 2 \operatorname{Re} \sum_g c_g e^{i g \cdot r}$ of real
   fields from their coefficients, on the grid `xs` × `ys` (units $L$), for plots
-- internal, shared by the workspaces (and by packages that build on MoireCore): `cell_modes` (the modes and grid size
+- internal, shared by the workspaces (and by packages that build on MoireRelax): `cell_modes` (the modes and grid size
   of a cell, the moiré cell included), `grid_index` (the FFT position of a mode), `cell_disregistry` (the rigid
   disregistry on the grid of a cell), `hexnorm` (the shell of a reciprocal vector)
 
@@ -455,8 +454,8 @@ supercells with more than one field.
 - `Base.@nospecializeinfer` with `@nospecialize(potential!)` on `relax_moire` and its solvers: neither compilation nor
   inference specialize on the model, so that the precompiled code serves any `potential!` without being compiled again.
 - Julia compiles the package again after a change of any of its files, since `include` records each included file as a
-  dependency; no `include_dependency` is needed. A change of MoireCore also recompiles the packages that depend on
+  dependency; no `include_dependency` is needed. A change of MoireRelax also recompiles the packages that depend on
   it, at their next `using`.
 - During heavy editing, the workload can be switched off with the preference `precompile_workload = false` of
-  PrecompileTools (e.g. in `LocalPreferences.toml`, under `[MoireCore]`): compiling the package then takes a few
+  PrecompileTools (e.g. in `LocalPreferences.toml`, under `[MoireRelax]`): compiling the package then takes a few
   seconds, and the solvers compile at their first calls instead.

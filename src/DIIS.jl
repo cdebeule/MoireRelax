@@ -1,4 +1,4 @@
-# DIIS.jl: Pulay mixing for fixed-point problems x = F(x) (README). Included by MoireCore.jl; also works on its own.
+# DIIS.jl: Pulay mixing for fixed-point problems x = F(x) (README). Included by MoireRelax.jl; also works on its own.
 
 using LinearAlgebra
 

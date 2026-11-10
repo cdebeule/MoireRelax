@@ -2,8 +2,8 @@
 # packages), and the transfer of solutions between cells (README.md, Supercells)
 
 # the representative wavevectors of the supercell S (one of each ±g): the integers m with x = S⁻ᵀ m within N_shell
-# shells; returns m (grid indices) and x (moiré reciprocal coordinates), sorted by shell
-function supercell_wavevectors(S, N_shell)
+# shells of the lattice; returns m (grid indices) and x (moiré reciprocal coordinates), sorted by shell
+function supercell_wavevectors(lat::Lattice, S, N_shell)
     d = S[1, 1] * S[2, 2] - S[1, 2] * S[2, 1]
     @assert d > 0 "det S must be positive"
     m_max = ((abs(S[1, 1]) + abs(S[2, 1])) * N_shell, (abs(S[1, 2]) + abs(S[2, 2])) * N_shell)   # |m_i| = |(Sᵀx)_i|
@@ -11,18 +11,19 @@ function supercell_wavevectors(S, N_shell)
     for m2 in -m_max[2]:m_max[2], m1 in -m_max[1]:m_max[1]
         (m1 > 0 || (m1 == 0 && m2 > 0)) || continue                       # one of each ±g
         p = (S[2, 2] * m1 - S[2, 1] * m2, S[1, 1] * m2 - S[1, 2] * m1)      # det(S) S⁻ᵀ m
-        hexnorm(p) ≤ d * N_shell && (push!(ms, (m1, m2)); push!(ps, p))
+        shell(lat, p) ≤ d * N_shell && (push!(ms, (m1, m2)); push!(ps, p))
     end
-    order = sortperm(ps; by = p -> (hexnorm(p), p))
+    order = sortperm(ps; by = p -> (shell(lat, p), p))
     return [ms[k][i] for i in 1:2, k in order], [ps[k][i] / d for i in 1:2, k in order]
 end
 
-# the modes and grid of the moiré cell (S = nothing: the modes of make_bvecs, in their order) or of the supercell S (by
-# shell): the grid indices m of the modes, their reciprocal coordinates x (= m for the moiré cell) and the grid size,
-# per direction the smallest FFT-friendly size ≥ pad (2 max|m| + 1), or N × N for N > 0
-function cell_modes(N_shell, S, N, pad)
+# the modes and grid of the moiré cell (S = nothing: the modes of cell_wavevectors, in their order) or of the supercell
+# S (by shell): the grid indices m of the modes, their reciprocal coordinates x (= m for the moiré cell) and the grid
+# size, per direction the smallest FFT-friendly size ≥ pad (2 max|m| + 1), or N × N for N > 0
+function cell_modes(lat::Lattice, N_shell, S, N, pad)
     fftsize(n) = N > 0 ? N : nextprod((2, 3, 5, 7), ceil(Int, pad * (2n + 1)))
-    m, x = S === nothing ? (make_bvecs(N_shell), make_bvecs(N_shell)) : supercell_wavevectors(S, N_shell)
+    m, x = S === nothing ? (cell_wavevectors(lat, N_shell), cell_wavevectors(lat, N_shell)) :
+           supercell_wavevectors(lat, S, N_shell)
     return m, x, (fftsize(maximum(abs, m[1, :])), fftsize(maximum(abs, m[2, :])))
 end
 
@@ -30,7 +31,8 @@ end
 grid_index(m1, m2, Ns) = CartesianIndex(mod(m1, Ns[1]) + 1, mod(m2, Ns[2]) + 1)
 
 # the rigid disregistry ϕ0 = s1 a1 + s2 a2 on the grid of the cell S: s = S t at the grid point t (cell coordinates)
-function cell_disregistry(S, Ns)
+function cell_disregistry(lat::Lattice, S, Ns)
+    a1, a2 = lattice_vectors(lat)
     t1, t2 = (0:Ns[1]-1) ./ Ns[1], (0:Ns[2]-1) ./ Ns[2]
     return [(S[1, 1] * s + S[1, 2] * t) * a1 + (S[2, 1] * s + S[2, 2] * t) * a2 for s in t1, t in t2]
 end
