@@ -21,7 +21,7 @@ padrows(u, n) = vcat(u, zeros(ComplexF64, n - size(u, 1), size(u, 2)))   # a sol
 ### Sweep: the angles downward, each started from the extrapolation of the last three solutions
 
 θs = [2.0:-0.05:0.1; [0.08, 0.06, 0.05, 0.04, 0.03, 0.02, 0.015, 0.01]]
-nstar = 10                                              # the stars of the first 4 shells are plotted
+nstar = 15                                              # the stars of the first 5 shells are plotted
 sols, E_el, E_V = Matrix{ComplexF64}[], Float64[], Float64[]
 bvecs = Matrix{Int}(undef, 2, 0)
 for (i, θ) in enumerate(θs)
@@ -68,7 +68,7 @@ for k in 1:nstar
     lines!(ax1, θs, u_perp[k, :]; color = colors[k], linewidth = 2, label = L"$(%$n1, %$n2)$")
     lines!(ax2, θs, u_para[k, :]; color = colors[k], linewidth = 2)
 end
-axislegend(ax1, L"$\mathbf{g} = n_1 \mathbf{G}_1 + n_2 \mathbf{G}_2$"; position = :rt, nbanks = 2, labelsize = 15)
+axislegend(ax1, L"$\mathbf{g} = n_1 \mathbf{g}_1 + n_2 \mathbf{g}_2$"; position = :rt, nbanks = 3, labelsize = 15)
 resize_to_layout!(fig)
 save("bilayer_sweep_modes.png", fig; px_per_unit = 2)
 
@@ -77,15 +77,15 @@ save("bilayer_sweep_modes.png", fig; px_per_unit = 2)
 
 fig2 = Figure(size = (1150, 480), fontsize = 16)
 ax3 = Axis(fig2[1, 1]; title = L"\text{energies per monolayer cell}", xlabel, ylabel = L"\text{meV/cell}", labels...)
-lines!(ax3, θs, E_el .+ E_V; color = :black, linewidth = 2, label = L"$E = E_\mathrm{el} + \langle V \rangle$")
+lines!(ax3, θs, E_el .+ E_V; color = :black, linewidth = 2, label = L"$E = E_\mathrm{el} + \bar{V}$")
 lines!(ax3, θs, E_el; linewidth = 2, label = L"$E_\mathrm{el}$")
-lines!(ax3, θs, E_V; linewidth = 2, label = L"$\langle V \rangle$")
+lines!(ax3, θs, E_V; linewidth = 2, label = L"$\bar{V}$")
 hlines!(ax3, [V_AB]; color = :gray, linestyle = :dash, label = L"$V_\mathrm{AB}$")
 axislegend(ax3; position = :rb, labelsize = 15)
 ax4 = Axis(fig2[1, 2]; title = L"\text{energies of the walls, divided by the angle}", xlabel,
            ylabel = L"\text{meV/cell per degree}", labels...)
 lines!(ax4, θs, E_el ./ θs; linewidth = 2, label = L"$E_\mathrm{el} / \theta$")
-lines!(ax4, θs, (E_V .- V_AB) ./ θs; linewidth = 2, label = L"$(\langle V \rangle - V_\mathrm{AB}) / \theta$")
+lines!(ax4, θs, (E_V .- V_AB) ./ θs; linewidth = 2, label = L"$(\bar{V} - V_\mathrm{AB}) / \theta$")
 axislegend(ax4; position = :rt, labelsize = 15)
 resize_to_layout!(fig2)
 save("bilayer_sweep_energies.png", fig2; px_per_unit = 2)

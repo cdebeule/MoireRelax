@@ -101,7 +101,7 @@ The moiré of the relative deformation `M` of two layers (`moire_matrix`), on th
 reciprocal coordinates `bvecs` (e.g. those saved with a run): the moiré length `L`, the mean length of the moiré lattice
 vectors ``M^{-1} a_1``, ``M^{-1} a_2`` (units a); the moiré reciprocal vectors `g` ``= L M^\\mathsf{T} b`` of the modes
 as ``g_x + i g_y`` (units 1/L), with `invdotgg` ``= 1/|g|^2``; and `G`, the matrix whose columns are the moiré
-reciprocal lattice vectors ``G_i = L M^\\mathsf{T} b_i`` (units 1/L), so that ``G_i \\cdot r = b_i \\cdot \\phi_0`` for a
+reciprocal lattice vectors ``g_i = L M^\\mathsf{T} b_i`` (units 1/L), so that ``g_i \\cdot r = b_i \\cdot \\phi_0`` for a
 point `r` (units L) with the rigid disregistry ``\\phi_0 = M r`` (`cell_coordinates`). With `WorkspaceC3`, `M` must be
 a scaling times a rotation.
 """
@@ -109,7 +109,7 @@ struct MoireGeometry{T}
     L::T                    # mean length of the moiré lattice vectors M⁻¹a1, M⁻¹a2 (units a)
     g::Vector{Complex{T}}   # g_x + i g_y of the moiré reciprocal vectors (units 1/L)
     invdotgg::Vector{T}     # 1/|g|²
-    G::SMatrix{2,2,T,4}     # columns: the moiré reciprocal lattice vectors G_i = L Mᵀ bᵢ (units 1/L)
+    G::SMatrix{2,2,T,4}     # columns: the moiré reciprocal lattice vectors g_i = L Mᵀ bᵢ (units 1/L)
 end
 
 function MoireGeometry(M::AbstractMatrix, ws::AbstractWorkspace)

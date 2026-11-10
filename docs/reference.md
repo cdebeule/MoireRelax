@@ -118,7 +118,8 @@ $$M = \Big(1 + \frac{\epsilon_0}{2}\Big) R(\theta/2) - \Big(1 - \frac{\epsilon_0
 and `twist_angle(M)` reads $\theta$ from the antisymmetric part of $M$. `MoireGeometry(M, ws)` holds the moiré length
 $L$, the mean length of the moiré lattice vectors $M^{-1} a_1$ and $M^{-1} a_2$, the moiré reciprocal vectors
 $g = L M^\mathsf{T} b$ of the modes of `ws` (units $1/L$), such that $g \cdot r = b \cdot \phi_0$ for $r$ in units $L$,
-and the matrix `G` of the moiré reciprocal lattice vectors $G_i = L M^\mathsf{T} b_i$ (columns). From it,
+and the matrix `G` of the moiré reciprocal lattice vectors $g_i = L M^\mathsf{T} b_i$ (columns), so that the mode
+$(n_1, n_2)$ has $g = n_1 g_1 + n_2 g_2$. From it,
 `cell_coordinates(moire, r)` gives the coordinates $s = G^\mathsf{T} r / 2\pi$ of a point $r$ (units $L$) in the moiré
 cell, with $\phi_0 = s_1 a_1 + s_2 a_2$ (the grid of a workspace is at $s_i = (k - 1)/N_i$), and
 `rigid_disregistry(moire, lattice, r)` the disregistry $\phi_0$ itself.
@@ -256,7 +257,7 @@ A supercell of the moiré cell lets the relaxation break the moiré translations
 the moiré lattice vectors $L_1 = M^{-1} a_1$, $L_2 = M^{-1} a_2$ (60° apart): $A_j = S_{1j} L_1 + S_{2j} L_2$, and
 $\det S$ is the number of moiré cells. `S = nothing` (the default) is the moiré cell as before.
 
-- Modes: the reciprocal vectors of the supercell are $x_1 G_1 + x_2 G_2$, with $G_i = M^\mathsf{T} b_i$ the moiré
+- Modes: the reciprocal vectors of the supercell are $x_1 g_1 + x_2 g_2$, with $g_i = M^\mathsf{T} b_i$ the moiré
   reciprocal vectors and $x = S^{-\mathsf{T}} m$ for integers $m$: the moiré reciprocal vectors ($x$ integer) and the
   fractional ones between them. `ws.bvecs` holds $x$ (floats), one of each $\pm g$, all those within `N_shell` shells of the moiré reciprocal
   lattice (the resolution of the moiré cell), ordered by shell (`supercell_wavevectors(lattice, S, N_shell)` returns $m$
