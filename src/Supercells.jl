@@ -1,11 +1,16 @@
 # Supercells of the moiré cell: their modes, grid and rigid disregistry (for Workspace and the workspaces of other
-# packages), and the transfer of solutions between cells (README.md, Supercells)
+# packages), and the transfer of solutions between cells (reference, Supercells)
 
-# the representative wavevectors of the supercell S (one of each ±g): the integers m with x = S⁻ᵀ m within N_shell
-# shells of the lattice; returns m (grid indices) and x (moiré reciprocal coordinates), sorted by shell
+"""
+    supercell_wavevectors(lattice, S, N_shell) -> (m, x)
+
+The representative wavevectors of the supercell `S` (one of each pair ±g): the integers `m` (grid indices) with
+reciprocal coordinates ``x = S^{-\\mathsf{T}} m`` within `N_shell` shells of the moiré reciprocal lattice, sorted by
+shell; one column each (reference, Supercells).
+"""
 function supercell_wavevectors(lat::Lattice, S, N_shell)
     d = S[1, 1] * S[2, 2] - S[1, 2] * S[2, 1]
-    @assert d > 0 "det S must be positive"
+    d > 0 || throw(ArgumentError("det S must be positive (the supercell vectors in a right-handed order), got $d"))
     m_max = ((abs(S[1, 1]) + abs(S[2, 1])) * N_shell, (abs(S[1, 2]) + abs(S[2, 2])) * N_shell)   # |m_i| = |(Sᵀx)_i|
     ms, ps = Tuple{Int,Int}[], Tuple{Int,Int}[]
     for m2 in -m_max[2]:m_max[2], m1 in -m_max[1]:m_max[1]
@@ -59,11 +64,19 @@ function transfer_modes(X, wsa, wsb)
     return Y
 end
 
-# true for the modes of ws that are moiré-periodic (integer reciprocal coordinates)
+"""
+    moire_periodic(ws)
+
+For each mode of `ws`, whether it is moiré-periodic (integer reciprocal coordinates).
+"""
 moire_periodic(ws) = [all(abs.(x .- round.(x)) .< 1e-9) for x in eachcol(ws.bvecs)]
 
-# the fraction of Σ|c|² in the modes that are not moiré-periodic (rows of c: the modes of ws), 0 for c = 0: how much a
-# supercell state breaks the moiré translations
+"""
+    supercell_fraction(c, ws)
+
+The fraction of Σ|c|² in the modes of `ws` that are not moiré-periodic (rows of `c`: the modes), 0 for c = 0: how much
+a supercell state breaks the moiré translations.
+"""
 function supercell_fraction(c, ws)
     total = sum(abs2, c)
     return total > 0 ? sum(abs2, c[.!moire_periodic(ws), :]) / total : 0.0

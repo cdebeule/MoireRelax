@@ -1,4 +1,4 @@
-# DIIS.jl: Pulay mixing for fixed-point problems x = F(x) (README). Included by MoireRelax.jl; also works on its own.
+# DIIS.jl: Pulay mixing for fixed-point problems x = F(x) (reference). Included by MoireRelax.jl; also works on its own.
 
 using LinearAlgebra
 
@@ -6,7 +6,7 @@ using LinearAlgebra
     MixerDIIS(n; maxdim = 20, S = ComplexF64)
 
 Storage for `mix!` (Pulay mixing): up to `maxdim` outputs and residuals of vectors of length `n` with elements of type
-`S`, and their overlaps Re⟨rᵢ, rⱼ⟩ (README).
+`S`, and their overlaps Re⟨rᵢ, rⱼ⟩ (reference).
 """
 struct MixerDIIS{T<:Real,S<:Number}
     X::Matrix{S}                            # stored outputs F(xᵢ)
@@ -22,7 +22,7 @@ MixerDIIS(n::Integer; maxdim::Integer = 20, S::Type{<:Number} = ComplexF64) =
     mix!(k, x_in, x_out, mixer; β = 1, β_diis = 1, ridge = 1e-12)
 
 DIIS step for x = F(x): given `x_out = F(x_in)`, overwrites `x_in` with the next input, built from the stored outputs
-F(xᵢ) and residuals rᵢ = F(xᵢ) - xᵢ; `k` = 1, 2, … counts the calls since the last restart (README).
+F(xᵢ) and residuals rᵢ = F(xᵢ) - xᵢ; `k` = 1, 2, … counts the calls since the last restart (reference).
 """
 @views function mix!(k::Integer, x_in::AbstractVector, x_out::AbstractVector, mixer::MixerDIIS{T};
                      β::Real = 1, β_diis::Real = 1, ridge::Real = 1e-12) where {T}
@@ -51,7 +51,12 @@ F(xᵢ) and residuals rᵢ = F(xᵢ) - xᵢ; `k` = 1, 2, … counts the calls si
     return x_in
 end
 
-# largest change |aᵢ - bᵢ|, absolute and relative to the largest |bᵢ| (B = 0 gives a large relative change, not NaN)
+"""
+    get_error(A, B) -> (absolute, relative)
+
+The largest change |aᵢ - bᵢ| between the arrays, absolute and relative to the largest |bᵢ| (B = 0 gives a large
+relative change, not NaN); the DIIS solver stops on it.
+"""
 function get_error(A::AbstractArray, B::AbstractArray)
     d2 = maximum(i -> abs2(A[i] - B[i]), eachindex(A, B))
     return sqrt(d2), sqrt(d2 / max(maximum(abs2, B), floatmin(Float64)))

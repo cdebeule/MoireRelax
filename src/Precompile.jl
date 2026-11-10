@@ -1,4 +1,4 @@
-# Precompilation workload: runs only while the package is precompiled (README.md, Precompilation)
+# Precompilation workload: runs only while the package is precompiled (reference, Precompilation)
 
 # runs both solvers on both workspaces, with the keyword sets of the scripts, and on a supercell; and the utilities
 function precompile_workload()
@@ -18,7 +18,8 @@ function precompile_workload()
         redirect_stdout(devnull) do
             for solver in (:lbfgs, :diis)
                 u, = relax_moire(pot!, K, C, moire, ws; solver, label = "θ")
-                relax_moire(pot!, K, C, moire, ws; solver, u0 = extrapolate(1.0, [2.0, 3.0], [u, u]), label = "θ")
+                relax_moire(pot!, K, C, moire, ws; solver, u0 = extrapolate(1.0, [2.0, 3.0], [u, u]), label = "θ",
+                            verbose = false)
             end
             for opts in ((; rtol = 1e-8, max_iter = 10, m = 20), (; atol = 1e-9, max_iter = 10),
                          (; max_iter = 10, m = 20))

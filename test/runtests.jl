@@ -1,7 +1,7 @@
 # Tests of MoireRelax: invariants of the method, and reference values that guard against unintended changes.
 # Run with `julia --project=. -e 'using Pkg; Pkg.test()'` from the repository root.
 
-using MoireRelax, Test, StaticArrays, LinearAlgebra, Random
+using MoireRelax, Test, StaticArrays, LinearAlgebra, Random, Aqua
 using MoireRelax: FFTW
 
 Random.seed!(1)
@@ -19,7 +19,7 @@ bilayer_potential(moire, ws) = (dVdu, u) -> stacking_energy!((ϕ0, w) -> VdV_fas
 function relax_bilayer(ws, θ; solver = :lbfgs, ϵ0 = 0.0, u0 = ComplexF64[])
     moire = MoireGeometry(moire_matrix(θ, ϵ0), ws)
     C = fill(stiffness(Vg, ws), 1, 1)
-    return relax_moire(bilayer_potential(moire, ws), K1, C, moire, ws; solver, u0), moire
+    return relax_moire(bilayer_potential(moire, ws), K1, C, moire, ws; solver, u0, verbose = false), moire
 end
 
 @testset "MoireRelax" begin
@@ -48,7 +48,7 @@ end
         ws = Workspace(3, 1; flags)
         @test MoireGeometry(moire_matrix(θ), ws).L ≈ 1 / (2sind(θ / 2))
     end
-    @test_throws ErrorException MoireGeometry([1.0 0.1; 0.0 1.0] - I, WorkspaceC3(3, 1; flags))
+    @test_throws ArgumentError MoireGeometry([1.0 0.1; 0.0 1.0] - I, WorkspaceC3(3, 1; flags))
     # the geometry of saved modes
     ws = Workspace(5, 1; flags)
     @test MoireGeometry(moire_matrix(2.0), Float64.(ws.bvecs)).g ≈ MoireGeometry(moire_matrix(2.0), ws).g
@@ -70,7 +70,8 @@ end
         V, dV = VdV_fast(ϕ, Vg3...)
         @test V ≈ series(ϕ)
         @test dV ≈ dseries(ϕ)
-        @test hessian(Vg3, ϕ) ≈ d2series(ϕ) rtol = 1e-5                 # central differences with h = 1e-4
+        @test hessian(Vg3, ϕ) ≈ d2series(ϕ)                             # analytic
+        @test hessian(ϕ -> VdV_fast(ϕ, Vg3...), ϕ) ≈ d2series(ϕ) rtol = 1e-5   # a callable: central differences
     end
     # graphene: the minimum is AB, (a1 + a2)/3, with the curvature of the analytic Hessian
     a1, a2 = lattice_vectors(Hexagonal())
@@ -82,6 +83,11 @@ end
     @test isposdef(Symmetric(Hmin))
     @test stiffness(Vg) ≈ tr(Hmin) / 2
     @test stiffness(Vg, Workspace(5, 1; flags)) ≈ stiffness(Vg)
+    # any callable V(ϕ) -> (V, ∇V) serves as the potential
+    Vfun(ϕ) = VdV_fast(ϕ, P...)
+    @test minimum_stacking(Vfun) ≈ ϕmin
+    @test stiffness(Vfun) ≈ stiffness(Vg) rtol = 1e-6                 # finite-difference Hessian for a callable
+    @test curvature(Vfun, ϕmin) ≈ curvature(Vg, ϕmin) rtol = 1e-6
 end
 
 @testset "workspaces and grid" begin
@@ -142,8 +148,21 @@ end
 
 @testset "relaxation" begin
     θ = 1.0
-    (u, E_el, E_V, converged), moire = relax_bilayer(Workspace(20, 1; flags), θ)
+    res, moire = relax_bilayer(Workspace(20, 1; flags), θ)
+    @test keys(res) == (:u, :E_el, :E_V, :converged, :iterations)
+    @test res.iterations > 0
+    u, E_el, E_V, converged = res                                   # positional destructuring works too
     @test converged
+    # verbose = false prints nothing
+    ws = Workspace(8, 1; flags)
+    moire8 = MoireGeometry(moire_matrix(θ), ws)
+    mktemp() do path, io
+        redirect_stdout(io) do
+            relax_moire(bilayer_potential(moire8, ws), K1, fill(stiffness(Vg, ws), 1, 1), moire8, ws; verbose = false)
+        end
+        flush(io)
+        @test filesize(path) == 0
+    end
     @test E_el ≈ 1.2194649506 atol = 1e-7                           # reference values (graphene, 1°, 20 shells)
     @test E_V ≈ -2.7376206292 atol = 1e-7
     @test E_el ≈ elastic_energy(u, K1, moire.L)
@@ -209,13 +228,13 @@ end
     # a saved run: the geometry from the saved modes
     wsS = Workspace(8, 1; S = [1 -1; 1 2], flags)
     @test MoireGeometry(moire_matrix(θ, ϵ0), wsS.bvecs).g ≈ MoireGeometry(moire_matrix(θ, ϵ0), wsS).g
-    @test_throws AssertionError Workspace(8, 1; S = [1 1; 1 1], flags)   # det S must be positive
+    @test_throws ArgumentError Workspace(8, 1; S = [1 1; 1 1], flags)   # det S must be positive
 end
 
 @testset "harmonic model" begin
     @test chain_laplacian([1.0, 2.0]) == [1 -1 0; -1 3 -2; 0 -2 2]
     @test chain_laplacian([1.0, 1.0], [0.5]; nnn_start = 1) == [1.5 -1 -0.5; -1 2 -1; -0.5 -1 1.5]
-    @test_throws ErrorException chain_laplacian([1.0, 1.0], [0.5])
+    @test_throws ArgumentError chain_laplacian([1.0, 1.0], [0.5])
     @test coupling_laplacian(2, [(1, 2, 3.0)]) == [3 -3; -3 3]
     # precond: S Sᵀ = (2A)⁻¹ for the harmonic Hessian A, and Sinv is its inverse
     ws = Workspace(4, 2; flags)
@@ -234,6 +253,23 @@ end
     end
 end
 
+@testset "arguments" begin
+    @test_throws ArgumentError Workspace(0, 1; flags)
+    @test_throws ArgumentError WorkspaceC3(3, 0; flags)
+    @test_throws ArgumentError WorkspaceC3(3, 1; S = [2 0; 0 2], flags)
+    @test_throws ArgumentError Workspace(3, 1, 5; flags)             # grid too small for 3 shells
+    ws = Workspace(4, 1; flags)
+    moire = MoireGeometry(moire_matrix(2.0), ws)
+    pot! = bilayer_potential(moire, ws)
+    C = fill(stiffness(Vg, ws), 1, 1)
+    @test_throws DimensionMismatch relax_moire(pot!, [1e-5 2e-5 3e-5], C, moire, ws; verbose = false)
+    @test_throws DimensionMismatch relax_moire(pot!, K1, [1.0 0.0], moire, ws; verbose = false)
+    @test_throws DimensionMismatch relax_moire(pot!, K1, C, moire, ws; u0 = zeros(ComplexF64, 3, 4), verbose = false)
+    @test_throws ArgumentError relax_moire(pot!, K1, C, moire, ws; solver = :newton, verbose = false)
+    @test_throws ArgumentError relax_moire((d, u) -> "oops", K1, C, moire, ws; verbose = false)
+    @test_throws ArgumentError relax_moire((d, u) -> nothing, K1, C, moire, ws; solver = :diis, verbose = false)
+end
+
 @testset "utilities" begin
     moire = MoireGeometry(moire_matrix(2.0), Workspace(3, 1; flags))
     xs, ys = range(-0.5, 0.5, 7), range(-0.5, 0.5, 5)
@@ -246,6 +282,10 @@ end
     redirect_stdout(devnull) do
         print_params("parameters", Any[("θ", 1.0, "deg"), ("N", 3), coef_rows(Vg, "")...])
     end
+end
+
+@testset "code quality (Aqua)" begin
+    Aqua.test_all(MoireRelax)
 end
 
 end
