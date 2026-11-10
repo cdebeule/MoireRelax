@@ -62,9 +62,7 @@ D = to_grid!(ws, u, moire)                          # u_x + i u_y on the grid of
 This prints the elastic and stacking energies per cell (`E_el = 1.219`, `E_V = -2.738` meV) and returns the mode
 amplitudes `u`; `examples/bilayer.jl` sweeps the angle and `examples/trilayer.jl` does the same for three layers.
 
-## Citation
-
-If you use this code, please cite
+## References
 
 [1] C. De Beule, G. N. Pallewela, M. M. Al Ezzi, L. Peng, E. J. Mele, and S. Adam,
 *Theory for lattice relaxation in marginally twisted bilayers*, [arXiv:2503.19162](https://arxiv.org/abs/2503.19162) (2025).
