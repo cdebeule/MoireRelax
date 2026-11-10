@@ -1,6 +1,7 @@
 # MoireCore
 
-MoireCore relaxes the in-plane displacements of the layers of a moiré: it minimizes their elastic energy plus the
+MoireCore relaxes the in-plane displacements of the layers of a moiré of monolayers with hexagonal symmetry
+(graphene, hBN, transition-metal dichalcogenides, …): it minimizes their elastic energy plus the
 stacking energy of the interfaces, by LBFGS or DIIS, with the displacements expanded in the moiré reciprocal vectors
 and the stacking energy evaluated on a real-space grid of the moiré cell (FFTs). It handles any number of layers and
 interfaces (bilayers, trilayers, stacks), with or without C3 symmetry, and supercells of the moiré cell

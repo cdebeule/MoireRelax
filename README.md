@@ -2,12 +2,14 @@
 
 Lattice relaxation in moiré materials with continuum elasticity theory.
 
-- **`julia/MoireCore`** — a Julia package that relaxes the in-plane displacements of the layers of a moiré: it
-  minimizes the elastic energy of the layers plus the stacking energy of their interfaces, for any number of layers
-  (twisted bilayers, trilayers, stacks), with or without C3 symmetry, on the moiré cell or on a supercell of it. The
-  displacements are expanded in the moiré reciprocal vectors, the stacking energy is evaluated on a real-space grid
-  (FFTs), and the energy is minimized by preconditioned LBFGS or DIIS. Its [README](julia/MoireCore/README.md)
-  documents the conventions, the method and every function; `examples/` has a twisted bilayer and a trilayer.
+- **`julia/MoireCore`** — a Julia package that relaxes the in-plane displacements of the layers of a moiré of
+  monolayers with hexagonal symmetry (graphene, hBN, transition-metal dichalcogenides, …): it minimizes the elastic
+  energy of the layers plus the stacking energy of their interfaces, for any number of layers (twisted bilayers,
+  trilayers, stacks), with or without C3 symmetry, on the moiré cell or on a supercell of it. The displacements are
+  expanded in the moiré reciprocal vectors, the stacking energy is evaluated on a real-space grid using the fast
+  Fourier transform (FFT), and the energy is minimized by preconditioned LBFGS or DIIS. Its
+  [README](julia/MoireCore/README.md) documents the conventions, the method and every function; `examples/` has a
+  twisted bilayer and a trilayer.
 - **`LAMMPS/`** — LAMMPS [3] input script and interatomic potentials used in Ref. [1].
 
 ## Installation
