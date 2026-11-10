@@ -1,5 +1,5 @@
 # Alternating-twist trilayer graphene (layers at +θ/2, -θ/2, +θ/2): relaxation of the three layer displacements.
-# Run from the repository root with `julia -t auto --project=. examples/trilayer.jl`.
+# Run from the repository root with `julia -t auto --project=examples examples/trilayer.jl` (or `--project=.`).
 
 using MoireRelax, StaticArrays, Printf, LinearAlgebra
 

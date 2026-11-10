@@ -231,6 +231,49 @@ end
     @test_throws ArgumentError Workspace(8, 1; S = [1 1; 1 1], flags)   # det S must be positive
 end
 
+@testset "real space" begin
+    θ = 2.0
+    ws = WorkspaceC3(10, 1; flags)
+    (u,), moire = relax_bilayer(ws, θ)
+    M, (a1, a2) = moire_matrix(θ), lattice_vectors(Hexagonal())
+    # G holds the moiré reciprocal lattice vectors: g of the mode (n1, n2) is n1 G1 + n2 G2
+    @test all(moire.g[m] ≈ complex((moire.G * ws.bvecs[:, m])...) for m in eachindex(moire.g))
+    # the coordinates in the cell of the point r = s1 L1 + s2 L2 (L_i = M⁻¹ a_i / L) are (s1, s2)
+    r = (0.3 * (M \ a1) + 0.45 * (M \ a2)) / moire.L
+    @test cell_coordinates(moire, r) ≈ [0.3, 0.45]
+    @test rigid_disregistry(moire, Hexagonal(), r) ≈ 0.3a1 + 0.45a2
+    @test cell_coordinates(moire, SA[0.0, 0.0]) == [0, 0]
+    # fields interpolated from a fine grid against direct sums over the modes
+    wsf = WorkspaceC3(10, 1, 128; flags)
+    D = to_grid!(wsf, u, moire)[:, :, 1]
+    xs, ys = range(-0.8, 0.8, 17), range(-0.6, 0.9, 13)
+    ws1 = Workspace(10, 1; flags)                        # all modes of the stars, three per stored amplitude
+    moire1 = MoireGeometry(M, ws1)
+    star(m) = (m - 1) ÷ 3 + 1
+    w = [-im * moire1.g[m] * moire1.invdotgg[m] * (u[star(m), 1] + im * u[star(m), 2]) for m in eachindex(moire1.g)]
+    wm = [im * moire1.g[m] * moire1.invdotgg[m] * (conj(u[star(m), 1]) + im * conj(u[star(m), 2])) for m in eachindex(moire1.g)]
+    Ex, Ey = cis.(real.(moire1.g) .* xs'), cis.(imag.(moire1.g) .* ys')
+    uref = transpose(Ex) * (w .* Ey) + transpose(conj.(Ex)) * (wm .* conj.(Ey))
+    uxy = grid_to_points(D, wsf, moire, xs, ys)
+    @test maximum(abs, uxy - uref) < 2e-3 * maximum(abs, uref)
+    rot = scalar_to_grid!(wsf, u[:, 2] ./ (2moire.L), moire)
+    rotref = field_synthesizer(moire1, xs, ys)(repeat(u[:, 2] ./ (2moire.L), inner = 3))
+    @test maximum(abs, grid_to_points(rot, wsf, moire, xs, ys) - rotref) < 2e-3 * maximum(abs, rotref)
+    # the stacking energy on the grid, interpolated, against V at the interpolated stacking
+    V = [first(VdV_fast(ϕ0 + SA[real(w), imag(w)], P...)) for (ϕ0, w) in zip(wsf.ϕ0, D)]
+    Vref = [first(VdV_fast(rigid_disregistry(moire, Hexagonal(), SA[x, y]) + SA[real(uref[i, j]), imag(uref[i, j])], P...))
+            for (i, x) in enumerate(xs), (j, y) in enumerate(ys)]
+    @test maximum(abs, grid_to_points(V, wsf, moire, xs, ys) - Vref) < 2e-3 * (maximum(Vref) - minimum(Vref))
+    # a supercell grid: the same periodic field interpolated from the grid of a √3 × √3 supercell (the C3 amplitudes
+    # expanded to the three modes of each star, then transferred to the supercell modes)
+    wsS = Workspace(10, 1, 224; S = [1 -1; 1 2], flags)
+    moireS = MoireGeometry(M, wsS)
+    DS = to_grid!(wsS, transfer_modes(repeat(u, inner = (3, 1)), ws1, wsS), moireS)[:, :, 1]
+    @test maximum(abs, grid_to_points(DS, wsS, moireS, xs, ys) - uref) < 2e-3 * maximum(abs, uref)
+    @test_throws DimensionMismatch grid_to_points(D[1:10, :], wsf, moire, xs, ys)
+    @test_throws DimensionMismatch scalar_to_grid!(wsf, u[1:5, 2], moire)
+end
+
 @testset "harmonic model" begin
     @test chain_laplacian([1.0, 2.0]) == [1 -1 0; -1 3 -2; 0 -2 2]
     @test chain_laplacian([1.0, 1.0], [0.5]; nnn_start = 1) == [1.5 -1 -0.5; -1 2 -1; -0.5 -1 1.5]
