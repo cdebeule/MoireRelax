@@ -60,6 +60,7 @@ As `Workspace`, for fields with C3 symmetry, u(Rr) = R u(r): one mode per star {
 from `grid_orbits`). About three times fewer modes and grid points; for the moiré cell only (reference, C3 symmetry).
 """
 function WorkspaceC3(N_shell::Integer, nf::Integer, N::Integer = 0; lattice::Lattice = Hexagonal(), S = nothing, kw...)
+    # S only to say clearly that a supercell needs Workspace (workspace_fields throws for it)
     _, bvecs, Ns, kp, km, ϕ0, W, D, pB, pF = workspace_fields(3, lattice, N_shell, nf, N, S; kw...)
     return WorkspaceC3(lattice, nf, bvecs, Ns[1], kp, km, ϕ0, W, D, pB, pF, grid_orbits(lattice, Ns[1]))
 end
@@ -196,12 +197,13 @@ fraction of a percent; use it for plots and cuts, not for energies.
 function grid_to_points(F::AbstractMatrix, ws::AbstractWorkspace, moire::MoireGeometry, xs, ys)
     size(F) == (size(ws.ϕ0, 1), size(ws.ϕ0, 2)) ||
         throw(DimensionMismatch("F must be on the grid of ws, $(size(ws.ϕ0)), got $(size(F))"))
-    Sinv = inv(SMatrix{2,2,Float64}(ws.S))                   # grid coordinates t = S⁻¹ s (the moiré cell: S = I)
+    Sinv = inv(SMatrix{2,2,Float64}(supercell_matrix(ws)))   # grid coordinates t = S⁻¹ s (the moiré cell: S = I)
     return [interpolate_periodic(F, Sinv * cell_coordinates(moire, SA[x, y])) for x in xs, y in ys]
 end
-grid_to_points(F::AbstractMatrix, ws::WorkspaceC3, moire::MoireGeometry, xs, ys) =
-    (size(F) == size(ws.ϕ0) || throw(DimensionMismatch("F must be on the grid of ws, $(size(ws.ϕ0)), got $(size(F))"));
-     [interpolate_periodic(F, cell_coordinates(moire, SA[x, y])) for x in xs, y in ys])
+
+# the supercell of a workspace, its vectors in units of the moiré lattice vectors (columns); WorkspaceC3: the moiré cell
+supercell_matrix(ws::Workspace) = ws.S
+supercell_matrix(::WorkspaceC3) = [1 0; 0 1]
 
 # bilinear interpolation at the point t (periodic, in units of the grid: F[i, j] at t = ((i - 1)/N1, (j - 1)/N2))
 function interpolate_periodic(F, t)

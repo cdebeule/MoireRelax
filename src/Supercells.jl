@@ -51,7 +51,9 @@ moiré-cell solution as the start of a supercell run. wsa may be anything with t
 (; bvecs = params["bvecs"]) of a saved run.
 """
 function transfer_modes(X, wsa, wsb)
-    key(x) = (round(Int, 27720x[1]), round(Int, 27720x[2]))     # exact for det S ≤ 12 (27720 = lcm(1, ..., 12))
+    # keys: 27720x is an integer for det S ≤ 12 (27720 = lcm(1, …, 12)); beyond, the same rational gives the same double
+    # (correctly rounded division), and two different modes share a key only if the lcm of the determinants exceeds 27720
+    key(x) = (round(Int, 27720x[1]), round(Int, 27720x[2]))
     pos = Dict(key(x) => m for (m, x) in enumerate(eachcol(wsa.bvecs)))
     Y = zeros(ComplexF64, size(wsb.bvecs, 2), size(X, 2))
     for (m, x) in enumerate(eachcol(wsb.bvecs))

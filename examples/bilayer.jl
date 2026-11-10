@@ -1,7 +1,7 @@
 # Twisted bilayer graphene: relaxation of the relative displacement u = u1 - u2 at a few twist angles, with C3 symmetry,
 # and a figure of the relaxed moiré at the smallest angle: the stacking energy, the displacement and the local twist.
 # Run from the repository root with `julia -t auto --project=examples examples/bilayer.jl` (examples/Project.toml has
-# CairoMakie; see the README). The figure is written to bilayer_<θ>.png in the current folder.
+# CairoMakie; see the README). The figure is written to output/bilayer_<θ>.png, in the folder the script is run from.
 
 using MoireRelax, StaticArrays, Printf, CairoMakie
 
@@ -79,6 +79,6 @@ end
 Label(fig[0, 1:6], L"twisted bilayer graphene, $\theta = %$θstr^\circ$, $L = %$Lstr$ $a$, $E = %$Estr$ meV/cell";
       fontsize = 22, tellwidth = false)                 # over all columns, centered
 resize_to_layout!(fig)                                  # the figure takes the size of its content
-file = @sprintf("bilayer_%.2f.png", θ)
+file = joinpath(mkpath("output"), @sprintf("bilayer_%.2f.png", θ))
 save(file, fig; px_per_unit = 2)
 println("figure saved as ", file)

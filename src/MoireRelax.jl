@@ -102,14 +102,15 @@ reciprocal coordinates `bvecs` (e.g. those saved with a run): the moiré length 
 vectors ``M^{-1} a_1``, ``M^{-1} a_2`` (units a); the moiré reciprocal vectors `g` ``= L M^\\mathsf{T} b`` of the modes
 as ``g_x + i g_y`` (units 1/L), with `invdotgg` ``= 1/|g|^2``; and `G`, the matrix whose columns are the moiré
 reciprocal lattice vectors ``g_i = L M^\\mathsf{T} b_i`` (units 1/L), so that ``g_i \\cdot r = b_i \\cdot \\phi_0`` for a
-point `r` (units L) with the rigid disregistry ``\\phi_0 = M r`` (`cell_coordinates`). With `WorkspaceC3`, `M` must be
-a scaling times a rotation.
+point `r` (units L) with the rigid disregistry ``\\phi_0 = M r`` (`cell_coordinates`); and the `lattice` of the
+workspace. With `WorkspaceC3`, `M` must be a scaling times a rotation.
 """
-struct MoireGeometry{T}
+struct MoireGeometry{T,LAT<:Lattice}
     L::T                    # mean length of the moiré lattice vectors M⁻¹a1, M⁻¹a2 (units a)
     g::Vector{Complex{T}}   # g_x + i g_y of the moiré reciprocal vectors (units 1/L)
     invdotgg::Vector{T}     # 1/|g|²
     G::SMatrix{2,2,T,4}     # columns: the moiré reciprocal lattice vectors g_i = L Mᵀ bᵢ (units 1/L)
+    lattice::LAT            # the monolayer lattice
 end
 
 function MoireGeometry(M::AbstractMatrix, ws::AbstractWorkspace)
@@ -121,7 +122,7 @@ function MoireGeometry(M::AbstractMatrix, ws::AbstractWorkspace)
     bx = ws.bvecs[1, :] * b1[1] + ws.bvecs[2, :] * b2[1]
     by = ws.bvecs[1, :] * b1[2] + ws.bvecs[2, :] * b2[2]
     g = @. L * complex(M[1, 1] * bx + M[2, 1] * by, M[1, 2] * bx + M[2, 2] * by) # L Mᵀb
-    return MoireGeometry(L, g, (@. 1 / abs2(g)), G)
+    return MoireGeometry(L, g, (@. 1 / abs2(g)), G, ws.lattice)
 end
 
 """
@@ -135,13 +136,13 @@ cell.
 cell_coordinates(moire::MoireGeometry, r) = transpose(moire.G) * SVector{2}(r) / 2π
 
 """
-    rigid_disregistry(moire, lattice, r)
+    rigid_disregistry(moire, r)
 
-The rigid disregistry ``\\phi_0 = M r = s_1 a_1 + s_2 a_2`` (units a) at the point `r` (units L) of the moiré, for the
-lattice vectors of `lattice` (`cell_coordinates`).
+The rigid disregistry ``\\phi_0 = M r = s_1 a_1 + s_2 a_2`` (units a) at the point `r` (units L) of the moiré, with the
+lattice vectors of `moire.lattice` (`cell_coordinates`).
 """
-function rigid_disregistry(moire::MoireGeometry, lat::Lattice, r)
-    s, (a1, a2) = cell_coordinates(moire, r), lattice_vectors(lat)
+function rigid_disregistry(moire::MoireGeometry, r)
+    s, (a1, a2) = cell_coordinates(moire, r), lattice_vectors(moire.lattice)
     return s[1] * a1 + s[2] * a2
 end
 
@@ -232,10 +233,11 @@ as_potential(V) = V
     hessian(Vg, ϕ)
     hessian(V, ϕ; h = 1e-4)
 
-The Hessian ``\\nabla\\nabla V`` of the stacking potential at `ϕ`: analytic for the coefficients `Vg` of the D3 form,
-and from central differences of the gradient (step `h`) for any callable `V(ϕ) -> (V, ∇V)`.
+The Hessian ``\\nabla\\nabla V`` of the stacking potential at `ϕ`: analytic for the coefficients `Vg` of the D3 form
+(a step `h` is accepted and ignored), and from central differences of the gradient (step `h`) for any callable
+`V(ϕ) -> (V, ∇V)`.
 """
-hessian(Vg::AbstractVector, ϕ) = series_hessian(harmonics(ϕ), SVector{5,Float64}(Vg)...)
+hessian(Vg::AbstractVector, ϕ; h = nothing) = series_hessian(harmonics(ϕ), SVector{5,Float64}(Vg)...)
 function hessian(V, ϕ; h = 1e-4)
     dV(ϕ) = last(V(ϕ))
     return hcat(dV(ϕ + SA[h, 0]) - dV(ϕ - SA[h, 0]), dV(ϕ + SA[0, h]) - dV(ϕ - SA[0, h])) / 2h

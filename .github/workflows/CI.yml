@@ -4,6 +4,9 @@ on:
     branches: [main]
     tags: ['*']
   pull_request:
+permissions:
+  actions: write      # julia-actions/cache deletes its old caches
+  contents: read
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

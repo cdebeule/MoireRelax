@@ -1,0 +1,36 @@
+# Runs the examples with their environment (CairoMakie included), so that a change of the package or of a dependency
+# that breaks them shows up at once. The figures and data they write are kept as an artifact of the run.
+name: Examples
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  actions: write      # julia-actions/cache deletes its old caches
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  examples:
+    name: Run the examples
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v2
+      - name: Instantiate the environment of the examples
+        run: julia --project=examples -e 'using Pkg; Pkg.instantiate()'
+      - name: bilayer.jl
+        run: julia -t auto --project=examples examples/bilayer.jl
+      - name: bilayer_sweep.jl
+        run: julia -t auto --project=examples examples/bilayer_sweep.jl
+      - name: trilayer.jl
+        run: julia -t auto --project=examples examples/trilayer.jl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: output
+          path: output/
