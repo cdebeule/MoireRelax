@@ -15,9 +15,10 @@ of the cell, the stacking energy is evaluated on a real-space grid of the cell u
 and the energy is minimized by preconditioned LBFGS or DIIS. The method is described in Refs. [1] and [2].
 
 - [`docs/reference.md`](docs/reference.md) documents the conventions, the method and every function.
-- [`examples/`](examples) has a twisted bilayer swept over the angle, with a figure of the relaxed moiré, and an
+- [`examples/`](examples) has a twisted bilayer at a few angles with a figure of the relaxed moiré, the same swept
+  from 2° to 0.01° with the Fourier components of the relaxation and the energies against the angle, and an
   alternating-twist trilayer. The package computes the fields and brings them to any points; the figures are made by
-  the user, and the bilayer example shows how, with CairoMakie.
+  the user, and the bilayer examples show how, with CairoMakie.
 
 ## Installation
 

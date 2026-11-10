@@ -68,7 +68,7 @@ the grid of the moiré cell, and `grid_to_points` brings it, or anything compute
 | `src/Relax.jl` | `relax_moire`: minimization of the elastic plus stacking energy by LBFGS or DIIS; `elastic_energy`, `minimize_lbfgs`, `check_gradient` |
 | `src/Precompile.jl` | the workload run while the package is precompiled |
 | `Project.toml` | name, identifier (UUID) and dependencies of the package |
-| `examples/bilayer.jl`, `examples/trilayer.jl` | a twisted bilayer swept over the angle, with a figure of the relaxed moiré (CairoMakie), and an alternating-twist trilayer relaxed layer by layer; `examples/Project.toml` is their environment |
+| `examples/bilayer.jl`, `examples/bilayer_sweep.jl`, `examples/trilayer.jl` | a twisted bilayer at a few angles with a figure of the relaxed moiré (CairoMakie); the same swept from 2° to 0.01°, with the shells following the angle, and the Fourier components of the relaxation and the energies against the angle; an alternating-twist trilayer relaxed layer by layer; `examples/Project.toml` is their environment |
 | `docs/reference.md` | this document |
 | `test/runtests.jl` | the tests: the invariants of the method (gradients against finite differences, C3 against no symmetry, LBFGS against DIIS, a supercell against the moiré cell, the D3 potential against its Fourier series and analytic Hessian), the argument checks, reference energies, and the code-quality checks of Aqua.jl; run by `Pkg.test()` and, on GitHub, by the CI workflow on Linux, macOS and Windows |
 
