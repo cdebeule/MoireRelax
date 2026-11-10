@@ -1,4 +1,4 @@
-# Twisted bilayer graphene swept over the twist angle, from 2° to 0.01°: the Fourier components of the relaxation,
+# Twisted bilayer graphene swept over the twist angle, 2° to 0.01°: the Fourier components of the relaxation,
 # the rotation and the dilation of u = u1 - u2 with one amplitude per C3 star, and the energies against the angle.
 # The number of shells follows the angle (N_shell θ ≳ 4 for the domain walls), so the smallest angles use 400 shells
 # on a 1215² grid, about 2 s each; the whole sweep takes about half a minute.
@@ -18,9 +18,9 @@ const V_AB = first(VdV_fast(minimum_stacking(Vg), P...))  # the stacking energy 
 nshell(θ) = max(20, ceil(Int, 4 / θ))                   # shells that resolve the walls at the angle θ (degrees)
 padrows(u, n) = vcat(u, zeros(ComplexF64, n - size(u, 1), size(u, 2)))   # a solution of fewer shells on n modes
 
-### Sweep: the angles downward, each started from the extrapolation (in log θ) of the last three solutions
+### Sweep: the angles downward, each started from the extrapolation of the last three solutions
 
-θs = exp10.(range(log10(2.0), log10(0.01), 24))
+θs = [2.0:-0.05:0.1; [0.08, 0.06, 0.05, 0.04, 0.03, 0.02, 0.015, 0.01]]
 nstar = 10                                              # the stars of the first 4 shells are plotted
 sols, E_el, E_V = Matrix{ComplexF64}[], Float64[], Float64[]
 bvecs = Matrix{Int}(undef, 2, 0)
@@ -30,7 +30,7 @@ for (i, θ) in enumerate(θs)
     C = fill(stiffness(Vg, ws), 1, 1)
     potential!(dVdu, u) = stacking_energy!((ϕ0, w) -> VdV_fast(ϕ0 + w, P...), dVdu, u, moire, ws)
     n, prev = size(ws.bvecs, 2), max(1, i - 3):i-1
-    u0 = extrapolate(log(θ), log.(θs[prev]), [padrows(sols[j], n) for j in prev])
+    u0 = extrapolate(θ, θs[prev], [padrows(sols[j], n) for j in prev])
     res = relax_moire(potential!, K, C, moire, ws; u0, label = @sprintf("θ = %.3f°  %3d shells", θ, nshell(θ)))
     push!(sols, res.u)
     push!(E_el, res.E_el)
@@ -50,16 +50,19 @@ open("bilayer_sweep.txt", "w") do io
 end
 
 ### Figure 1: the Fourier components against the angle (the mirror pairs, e.g. (3,1) and (3,2), have the same
-### rotation and opposite dilations)
+### rotation and opposite dilations). With sharp walls, the rotation of the (n, 0) stars reaches 2/3.
 
+# labels as LaTeX strings: the parts between $ are math, the rest text; a title without math needs \text{}
 labels = (xlabelsize = 21, ylabelsize = 21, xticklabelsize = 17, yticklabelsize = 17, titlesize = 20)
 xlabel = L"$\theta$ ($^\circ$)"
 colors = resample_cmap(:viridis, nstar + 1)[1:nstar]
 fig = Figure(size = (1150, 480), fontsize = 16)
-ax1 = Axis(fig[1, 1]; xscale = log10, title = L"rotation, one amplitude per star $\mathbf{g}$", xlabel,
-           ylabel = L"$u_\perp = L (\hat{z} \cdot \nabla \times \mathbf{u})_\mathbf{g}$", labels...)
-ax2 = Axis(fig[1, 2]; xscale = log10, title = L"dilation", xlabel,
-           ylabel = L"$u_\parallel = L (\nabla \cdot \mathbf{u})_\mathbf{g}$", labels...)
+ax1 = Axis(fig[1, 1]; title = L"rotation, one amplitude per star $\mathbf{g}$", xlabel,
+           ylabel = L"$u_\perp = L (\hat{z} \cdot \nabla \times \mathbf{u})_\mathbf{g}$",
+           yticks = ([0, 1/3, 2/3], [L"0", L"1/3", L"2/3"]), labels...)
+ax2 = Axis(fig[1, 2]; title = L"\text{dilation}", xlabel, ylabel = L"$u_\parallel = L (\nabla \cdot \mathbf{u})_\mathbf{g}$",
+           labels...)
+hlines!(ax1, [2 / 3]; color = :gray, linestyle = :dash)
 for k in 1:nstar
     n1, n2 = bvecs[1, k], bvecs[2, k]
     lines!(ax1, θs, u_perp[k, :]; color = colors[k], linewidth = 2, label = L"$(%$n1, %$n2)$")
@@ -69,22 +72,21 @@ axislegend(ax1, L"$\mathbf{g} = n_1 \mathbf{G}_1 + n_2 \mathbf{G}_2$"; position 
 resize_to_layout!(fig)
 save("bilayer_sweep_modes.png", fig; px_per_unit = 2)
 
-### Figure 2: the energies against the angle, and the energies of the walls on log scales (both go as θ, the wall
-### length per area, once the domains have formed)
+### Figure 2: the energies against the angle, and the energies of the walls divided by the angle: both go as θ, the
+### wall length per area, once the domains have formed, so the ratios reach constants
 
 fig2 = Figure(size = (1150, 480), fontsize = 16)
-ax3 = Axis(fig2[1, 1]; xscale = log10, title = L"energies per monolayer cell", xlabel, ylabel = L"meV/cell", labels...)
+ax3 = Axis(fig2[1, 1]; title = L"\text{energies per monolayer cell}", xlabel, ylabel = L"\text{meV/cell}", labels...)
 lines!(ax3, θs, E_el .+ E_V; color = :black, linewidth = 2, label = L"$E = E_\mathrm{el} + \langle V \rangle$")
 lines!(ax3, θs, E_el; linewidth = 2, label = L"$E_\mathrm{el}$")
 lines!(ax3, θs, E_V; linewidth = 2, label = L"$\langle V \rangle$")
 hlines!(ax3, [V_AB]; color = :gray, linestyle = :dash, label = L"$V_\mathrm{AB}$")
 axislegend(ax3; position = :rb, labelsize = 15)
-ax4 = Axis(fig2[1, 2]; xscale = log10, yscale = log10, title = L"energies of the walls", xlabel, ylabel = L"meV/cell",
-           labels...)
-lines!(ax4, θs, E_el; linewidth = 2, label = L"$E_\mathrm{el}$")
-lines!(ax4, θs, E_V .- V_AB; linewidth = 2, label = L"$\langle V \rangle - V_\mathrm{AB}$")
-lines!(ax4, θs, E_el[end] .* θs ./ θs[end]; color = :gray, linestyle = :dash, label = L"$\propto \theta$")
-axislegend(ax4; position = :lt, labelsize = 15)
+ax4 = Axis(fig2[1, 2]; title = L"\text{energies of the walls, divided by the angle}", xlabel,
+           ylabel = L"\text{meV/cell per degree}", labels...)
+lines!(ax4, θs, E_el ./ θs; linewidth = 2, label = L"$E_\mathrm{el} / \theta$")
+lines!(ax4, θs, (E_V .- V_AB) ./ θs; linewidth = 2, label = L"$(\langle V \rangle - V_\mathrm{AB}) / \theta$")
+axislegend(ax4; position = :rt, labelsize = 15)
 resize_to_layout!(fig2)
 save("bilayer_sweep_energies.png", fig2; px_per_unit = 2)
 println("figures saved as bilayer_sweep_modes.png and bilayer_sweep_energies.png, the data as bilayer_sweep.txt")
