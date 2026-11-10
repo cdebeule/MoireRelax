@@ -1,7 +1,7 @@
 # Alternating-twist trilayer graphene (layers at +θ/2, -θ/2, +θ/2): relaxation of the three layer displacements.
-# Run from the package folder with `julia -t auto --project=. examples/trilayer.jl`.
+# Run from the repository root with `julia -t auto --project=. examples/trilayer.jl`.
 
-using MoireCore, StaticArrays, Printf, LinearAlgebra
+using MoireRelax, StaticArrays, Printf, LinearAlgebra
 
 # graphene (PRB 98, 224102): Lamé constants and stacking potential [c1, c2, c3, p1, p3], in meV per cell
 const μ, λ = 47352.0, 69518.0 - 47352.0

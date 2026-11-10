@@ -1,13 +1,14 @@
-# MoireCore.jl: machinery of the moiré relaxation codes, as the package MoireCore
-# Contents, conventions, usage and the derivations behind the code: README.md of the package
+# MoireRelax.jl: lattice relaxation in moiré materials with continuum elasticity theory
+# Contents, conventions, usage and the derivations behind the code: docs/reference.md
 
-module MoireCore
+module MoireRelax
 
 using LinearAlgebra, StaticArrays, Printf, Polyester, FFTW, Optim
 using NLSolversBase: OnceDifferentiable, only_fg!
 using PrecompileTools: @compile_workload
 
 export Optim # scripts can call Optim.converged(res), Optim.minimizer(res), …
+export Lattice, Hexagonal, lattice_vectors, reciprocal_vectors, cell_area
 export a1, a2, b1, b2, Acell, MoireGeometry, moire_matrix, twist_angle
 export VdV_fast, hessian, curvature, minimum_stacking, stiffness
 export extrapolate, print_params, coef_rows
@@ -18,12 +19,36 @@ export MixerDIIS, mix!, get_error
 export relax_moire, elastic_energy, minimize_lbfgs, check_gradient
 export supercell_wavevectors, transfer_modes, moire_periodic, supercell_fraction, field_synthesizer
 
-const a1, a2 = SA[-1/2, sqrt(3)/2], SA[-1, 0]               # monolayer lattice vectors, zigzag along x
-const b1, b2 = SA[0, 4π/sqrt(3)], SA[-2π, -2π/sqrt(3)]      # reciprocal vectors, bᵢ⋅aⱼ = 2π δᵢⱼ
-const Acell = sqrt(3) / 2                                   # area of the monolayer cell
+### Lattice
 
-# shell of a reciprocal vector n1 b1 + n2 b2 (hexagonal norm): shell s has max(|n1|, |n2|, |n1 - n2|) = s
+# The monolayer lattice: its lattice and reciprocal vectors, its cell area, the shells of its reciprocal vectors and
+# its rotation symmetry. A workspace carries the lattice, and everything that depends on it asks the lattice (README,
+# Conventions); the rest of the package works per mode and per grid point.
+abstract type Lattice end
+
+# the hexagonal (triangular) lattice of graphene, hBN, …, with zigzag along x
+struct Hexagonal <: Lattice end
+
+lattice_vectors(::Hexagonal) = (SA[-1/2, sqrt(3)/2], SA[-1, 0])             # a1, a2 (units a)
+reciprocal_vectors(::Hexagonal) = (SA[0, 4π/sqrt(3)], SA[-2π, -2π/sqrt(3)])   # b1, b2, with bᵢ⋅aⱼ = 2π δᵢⱼ
+cell_area(::Hexagonal) = sqrt(3) / 2                                        # units a²
+
+# the shell of the reciprocal vector n1 b1 + n2 b2: shell s of the hexagonal lattice has max(|n1|, |n2|, |n1 - n2|) = s
+shell(::Hexagonal, n) = hexnorm(n)
 hexnorm(n) = max(abs(n[1]), abs(n[2]), abs(n[1] - n[2]))
+
+# the representative wavevectors (n1, n2) of N_shell shells, one of each ±g, ordered by shell (make_bvecs)
+cell_wavevectors(::Hexagonal, N_shell) = make_bvecs(N_shell)
+
+# the rotation by 2π/3 in the basis a1, a2 (R a1 = -a1 + a2, R a2 = -a1): the symmetry of WorkspaceC3
+rotation(::Hexagonal) = SA[-1 -1; 1 0]
+
+# the same rotation in the basis b1, b2: the inverse transpose, which is an integer matrix for a lattice symmetry
+reciprocal_rotation(lat::Lattice) = round.(Int, inv(transpose(rotation(lat))))
+
+const a1, a2 = lattice_vectors(Hexagonal())     # the hexagonal lattice, for the D3 stacking potential below
+const b1, b2 = reciprocal_vectors(Hexagonal())
+const Acell = cell_area(Hexagonal())
 
 # workspaces without symmetry (Workspace, also for supercells) and with C3 symmetry (WorkspaceC3), in Workspaces.jl;
 # other packages can add their own
@@ -40,6 +65,7 @@ end
 function MoireGeometry(M::AbstractMatrix, ws::AbstractWorkspace)
     ws isa WorkspaceC3 && !(M[1, 1] ≈ M[2, 2] && M[1, 2] ≈ -M[2, 1]) &&
         error("C3 symmetry requires M = scaling × rotation (twist and isotropic mismatch)")
+    (a1, a2), (b1, b2) = lattice_vectors(ws.lattice), reciprocal_vectors(ws.lattice)
     L = (norm(M \ a1) + norm(M \ a2)) / 2
     bx = ws.bvecs[1, :] * b1[1] + ws.bvecs[2, :] * b2[1]
     by = ws.bvecs[1, :] * b1[2] + ws.bvecs[2, :] * b2[2]
@@ -48,9 +74,11 @@ function MoireGeometry(M::AbstractMatrix, ws::AbstractWorkspace)
 end
 
 # the geometry of modes given by their moiré reciprocal coordinates, e.g. the bvecs saved with a run
-MoireGeometry(M::AbstractMatrix, bvecs::AbstractMatrix{<:Real}) = MoireGeometry(M, ModeSet(Float64.(bvecs)))
-struct ModeSet <: AbstractWorkspace
+MoireGeometry(M::AbstractMatrix, bvecs::AbstractMatrix{<:Real}; lattice::Lattice = Hexagonal()) =
+    MoireGeometry(M, ModeSet(Float64.(bvecs), lattice))
+struct ModeSet{LAT<:Lattice} <: AbstractWorkspace
     bvecs::Matrix{Float64}
+    lattice::LAT
 end
 
 # rotation by θ (degrees)
@@ -129,8 +157,8 @@ end
 # interface stiffness k at the minimum stacking of V (found on the grid of ws, or on a 60 × 60 grid of the cell)
 stiffness(Vg, ws = cell_grid(60)) = curvature(Vg, minimum_stacking(Vg, ws))
 
-# the stackings s1 a1 + s2 a2 of an N × N grid of the cell
-cell_grid(N::Integer) = cell_disregistry([1 0; 0 1], (N, N))
+# the stackings s1 a1 + s2 a2 of an N × N grid of the hexagonal cell
+cell_grid(N::Integer) = cell_disregistry(Hexagonal(), [1 0; 0 1], (N, N))
 
 include(joinpath(@__DIR__, "Supercells.jl"))    # supercells: modes, grid, disregistry; transfer_modes
 include(joinpath(@__DIR__, "Workspaces.jl"))    # Workspace, WorkspaceC3, to_grid!, from_grid!, stacking_energy!

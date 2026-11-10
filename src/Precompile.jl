@@ -24,8 +24,8 @@ function precompile_workload()
                          (; max_iter = 10, m = 20))
                 relax_moire(pot!, K, C, moire, ws; solver = :lbfgs, u0 = ComplexF64[], label = "θ", opts...)
             end
-            print_params("MoireCore", [("a", 1.0, "b"); ("c", "d"); ("e", 1); coef_rows(Vg, " (x)")])
-            print_params("MoireCore", Any[("a", 1.0, "b"), ("c", "d"), ("e", 1)])
+            print_params("MoireRelax", [("a", 1.0, "b"); ("c", "d"); ("e", 1); coef_rows(Vg, " (x)")])
+            print_params("MoireRelax", Any[("a", 1.0, "b"), ("c", "d"), ("e", 1)])
         end
     end
     # a supercell (one field, default keywords; other cases compile at their first use): a moiré-cell solution as the

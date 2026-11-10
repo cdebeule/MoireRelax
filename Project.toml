@@ -1,5 +1,5 @@
-name = "MoireCore"
-uuid = "f9658083-0102-42bf-bcc8-2f654e69f308"
+name = "MoireRelax"
+uuid = "2e73559a-888f-4f9c-a7e2-5eba2b9ee14e"
 version = "0.1.0"
 
 [deps]
