@@ -81,7 +81,8 @@ the grid of the moiré cell, and `field_synthesizer` evaluates it on any grid fo
   that depends on it, the lattice and reciprocal vectors (`lattice_vectors`, `reciprocal_vectors`), the cell area
   (`cell_area`), the shells of the reciprocal vectors and the rotation of `WorkspaceC3`, asks the lattice; the rest of
   the package works per mode and per grid point. `Hexagonal()`, the default, is the lattice of graphene, hBN and the
-  transition-metal dichalcogenides, and the only one provided; the D3 stacking potential below is its
+  transition-metal dichalcogenides, and the only one provided; the D3 stacking potential below is written in its
+  reciprocal vectors
 - displacements and moiré wavevectors in complex notation $v = v_x + i v_y$, with $g$ in units $1/L$; the lattice
   vectors and the disregistry $\phi$ are real 2-vectors (`SVector{2}`)
 - fields: the $n_f$ displacement fields $u_f$ ($f = 1, \dots, n_f$) that the solver relaxes: the layer displacements of
@@ -127,7 +128,8 @@ $c_3 = \operatorname{Re} V_3$, $p_1 = \operatorname{Im} V_1$, $p_3 = \operatorna
 - `VdV_fast(ϕ, c1, c2, c3, p1, p3)`: $V$ and its gradient at $\phi$; pass the coefficients as a static vector `P`
   (`VdV_fast(ϕ, P...)`). It is `series(harmonics(ϕ), c...)`: `harmonics` gives the sines and cosines of the three
   stars once, which several series at the same $\phi$ can share (internal functions)
-- `hessian(Vg, ϕ)`: the Hessian of $V$ at $\phi$, from central differences of the gradient
+- `hessian(Vg, ϕ; h = 1e-4)`: the Hessian of $V$ at $\phi$, from central differences of the gradient (relative accuracy
+  about $10^{-7}$)
 - `curvature(Vg, ϕ)`: the interface stiffness $k = \operatorname{tr}(\nabla \nabla V)/2$ (meV/cell/$a^2$), the mean
   curvature of $V$ at $\phi$ (warns if $V$ is not convex there)
 - `minimum_stacking(Vg, ws)`: the lowest stacking, from the lowest grid point refined by Newton steps;
@@ -225,7 +227,8 @@ $\det S$ is the number of moiré cells. `S = nothing` (the default) is the moir�
 - Modes: the reciprocal vectors of the supercell are $x_1 G_1 + x_2 G_2$, with $G_i = M^\mathsf{T} b_i$ the moiré
   reciprocal vectors and $x = S^{-\mathsf{T}} m$ for integers $m$: the moiré reciprocal vectors ($x$ integer) and the
   fractional ones between them. `ws.bvecs` holds $x$ (floats), one of each $\pm g$, all those within `N_shell` shells of the moiré reciprocal
-  lattice (the resolution of the moiré cell), ordered by shell (`supercell_wavevectors(S, N_shell)` returns $m$ and $x$).
+  lattice (the resolution of the moiré cell), ordered by shell (`supercell_wavevectors(lattice, S, N_shell)` returns $m$
+  and $x$).
 - Grid: $N_1 \times N_2$ points of the supercell, $N_i$ the smallest FFT-friendly size $\ge \mathrm{pad}(2 \max |m_i| + 1)$
   (`ws.N = (N1, N2)`; one `N` gives $N \times N$). At the grid point $t$ (supercell coordinates), the moiré coordinates are
   $s = S t$ and the rigid disregistry $\phi_0 = s_1 a_1 + s_2 a_2$; with $g \cdot r = 2\pi\, m \cdot t$, the FFT index of
@@ -254,7 +257,7 @@ along $L_1$ ($S = [p\ {-q};\ 0\ \ 2q]$, $\det S = 2pq$), e.g. $1 \times \sqrt 3$
   fields from their coefficients, on the grid `xs` × `ys` (units $L$), for plots
 - internal, shared by the workspaces (and by packages that build on MoireRelax): `cell_modes` (the modes and grid size
   of a cell, the moiré cell included), `grid_index` (the FFT position of a mode), `cell_disregistry` (the rigid
-  disregistry on the grid of a cell), `hexnorm` (the shell of a reciprocal vector)
+  disregistry on the grid of a cell), `shell` (the shell of a reciprocal vector of the lattice)
 
 ## Harmonic model of the interlayer coupling
 
@@ -375,14 +378,16 @@ each field), with
 
 $C$ is the Hessian of the harmonic interlayer energy with respect to the fields (e.g. $(k)$ for the relative
 displacement of a bilayer, `chain_laplacian(…)` for the layers of a stack), used to precondition both solvers. The
-starting point is `u0` (zero if empty; it may come from fewer shells). Each call prints one line with `label`, the
-solver, the number of iterations and the energies, and warns if the solver did not converge.
+starting point is `u0` (zero if empty; it may come from fewer shells, whose modes are the first rows; rows beyond the
+modes of the workspace are dropped). Each call prints one line with `label`, the solver, the number of iterations and
+the energies, and warns if the solver did not converge.
 
 ### LBFGS (solver = :lbfgs)
 
 LBFGS in $u = S x$ (`precond`). Keywords: `rtol = 1e-6` (gradient tolerance, relative to the size of the solution),
 `max_iter = 300`, `m = 10` (history) and `atol = nothing` (absolute gradient tolerance in the variables $x$; if given,
-it replaces `rtol`).
+it replaces `rtol`). `converged` is Optim's verdict, which is also true when the energy stops changing before the
+gradient tolerance is met (`Optim.g_converged` of the result is the strict criterion).
 
 `minimize_lbfgs(fg!, x0; rtol, atol, max_iter, m, kwargs...)` is LBFGS in variables $x$ scaled such that the Hessian
 is $\approx 1$. The gradient tolerance is relative to the size of the solution, estimated by
@@ -395,8 +400,9 @@ first call, at $x_0$, is answered from `F0`, `G0`: Optim 1.x evaluates the start
 
 The damped fixed-point update $u \leftarrow u + P (u_\mathrm{next} - u)$ (`damping!`), with
 $u_\mathrm{next} = -\frac{K L^2}{2}$ `dVdu`, by simple mixing first and DIIS after. Keywords: `rtol = 1e-6` and
-`atol = 1e-14` (largest change of $u$ per iteration, relative and absolute), `max_iter = 300`, `max_iter_relax = 10`,
-`rtol_relax = 1e-2`, `atol_relax = 1e-14` (switch to DIIS after `max_iter_relax` iterations or below these changes),
+`atol = 1e-14` (largest change of $u$ per iteration, relative and absolute), `max_iter_relax = 10`, `rtol_relax = 1e-2`,
+`atol_relax = 1e-14` (switch to DIIS after `max_iter_relax` iterations of simple mixing, or earlier once the change is
+below these), `max_iter = 300` (DIIS iterations after that),
 `β_simplemix = 1`, `restart = 20`, `maxdim = 20`, `verbose = false` (print the changes per iteration).
 
 The matrix products of the DIIS mixer run on BLAS threads, so two runs can differ at the level of $10^{-14}$; with
