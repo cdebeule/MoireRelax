@@ -69,6 +69,7 @@ the grid of the moiré cell, and `field_synthesizer` evaluates it on any grid fo
 | `Project.toml` | name, identifier (UUID) and dependencies of the package |
 | `examples/bilayer.jl`, `examples/trilayer.jl` | a twisted bilayer swept over the angle, and an alternating-twist trilayer relaxed layer by layer |
 | `docs/reference.md` | this document |
+| `test/runtests.jl` | the tests: the invariants of the method (gradients against finite differences, C3 against no symmetry, LBFGS against DIIS, a supercell against the moiré cell, the D3 potential against its Fourier series) and reference energies; run by `Pkg.test()` and, on GitHub, by the CI workflow on Linux, macOS and Windows |
 
 ## Conventions
 
