@@ -1,0 +1,16 @@
+# Julia
+Manifest.toml
+LocalPreferences.toml
+fftw_wisdom
+*.jl.cov
+*.jl.mem
+
+# results and figures
+data/
+*.jld2
+*.png
+*.pdf
+
+# editors and OS
+.DS_Store
+.vscode/
