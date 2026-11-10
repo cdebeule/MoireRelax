@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/cdebeule/MoireRelax/actions/workflows/CI.yml/badge.svg)](https://github.com/cdebeule/MoireRelax/actions/workflows/CI.yml)
 
+<div align="justify">
+
 A Julia package for lattice relaxation in moiré materials with continuum elasticity theory.
 
 MoireRelax relaxes the in-plane displacements of the layers of a moiré of monolayers with hexagonal symmetry
@@ -64,14 +66,20 @@ amplitudes `u`; `examples/bilayer.jl` sweeps the angle and `examples/trilayer.jl
 
 ## References
 
+The continuum theory implemented here is developed in
+
 [1] C. De Beule, G. N. Pallewela, M. M. Al Ezzi, L. Peng, E. J. Mele, and S. Adam,
 *Theory for lattice relaxation in marginally twisted bilayers*, [arXiv:2503.19162](https://arxiv.org/abs/2503.19162) (2025).
 
 [2] C. De Beule, Y. Lai, L. Peng, D. Bennett, and S. Adam,
 *Lattice relaxation in moiré heterobilayers*, [arXiv:2605.17805](https://arxiv.org/abs/2605.17805) (2026).
 
-[3] [LAMMPS Molecular Dynamics Simulator](https://www.lammps.org), for the files in `LAMMPS/`.
+[3] [LAMMPS Molecular Dynamics Simulator](https://www.lammps.org), for the input files in `LAMMPS/`.
+
+A paper on the package itself is in preparation; how to cite it will be added here.
 
 ## License
 
 MIT, see [LICENSE](LICENSE).
+
+</div>

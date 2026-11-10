@@ -1,5 +1,5 @@
 # Workspaces without symmetry (Workspace, also for supercells) and with C3 symmetry (WorkspaceC3): the modes, the
-# real-space grid of the cell, the FFTs between them and the stacking energy on the grid (C3, supercells: README.md)
+# real-space grid of the cell, the FFTs between them and the stacking energy on the grid (C3, supercells: reference)
 
 struct Workspace{LAT<:Lattice,T,B,NI,PB,PF} <: AbstractWorkspace
     lattice::LAT                    # the monolayer lattice
@@ -16,7 +16,7 @@ struct Workspace{LAT<:Lattice,T,B,NI,PB,PF} <: AbstractWorkspace
     pF::PF                          # in-place forward FFT of D
 end
 
-# with C3 symmetry: one mode per star {g, Rg, R²g} and one grid point per C3 orbit (README)
+# with C3 symmetry: one mode per star {g, Rg, R²g} and one grid point per C3 orbit (reference)
 struct WorkspaceC3{LAT<:Lattice,T,PB,PF} <: AbstractWorkspace
     lattice::LAT                    # the monolayer lattice
     nf::Int                         # number of displacement fields on the grid
@@ -32,33 +32,45 @@ struct WorkspaceC3{LAT<:Lattice,T,PB,PF} <: AbstractWorkspace
     orb::Matrix{Int}                # C3 orbits of the grid (grid_orbits)
 end
 
-const ω3 = (complex(1.0), cis(2π / 3), cis(4π / 3))   # phases of u_x + i u_y at R^(r-1) g, r = 1, 2, 3
+"The phases ``(1, \\omega, \\omega^2)``, ``\\omega = e^{2\\pi i/3}``, of ``u_x + i u_y`` at ``R^{r-1} g``, r = 1, 2, 3, of a C3-symmetric field."
+const ω3 = (complex(1.0), cis(2π / 3), cis(4π / 3))
 
 """
     Workspace(N_shell, nf, N = 0; lattice = Hexagonal(), S = nothing, pad = 1, flags = FFTW.MEASURE, fft_threads = 1)
-    WorkspaceC3(N_shell, nf, N = 0; lattice = Hexagonal(), pad = 1, flags = FFTW.MEASURE, fft_threads = 1)
 
-Modes of `N_shell` shells of the lattice (WorkspaceC3: one per star) and an N × N grid for `nf` fields. Without `N`,
-the grid is the smallest FFT-friendly size ≥ pad (2N_shell + 1); pad = 1.5 to 2 reduces aliasing at small angles
-(README). With a supercell S (Workspace only; columns: the supercell vectors in units of the moiré lattice vectors),
-the modes within N_shell shells of the moiré reciprocal lattice, by shell, and an N1 × N2 grid of the supercell
-(README, Supercells).
+The modes of `N_shell` shells of the lattice, one of each pair ±g, and an N × N real-space grid of the moiré cell for
+`nf` displacement fields, with the FFT plans between them (`to_grid!`, `from_grid!`); no symmetry is assumed. Without
+`N`, the grid is the smallest FFT-friendly size ≥ pad (2N_shell + 1); pad = 1.5 to 2 reduces aliasing at small angles.
+With a supercell `S` (columns: the supercell vectors in units of the moiré lattice vectors), the modes within `N_shell`
+shells of the moiré reciprocal lattice, by shell, and an N1 × N2 grid of the supercell (reference, Supercells).
+`flags` and `fft_threads` go to the FFT plans. The fields `lattice`, `nf`, `S`, `bvecs` (the reciprocal coordinates
+of the modes, one per column), `N` and `ϕ0` (the rigid disregistry on the grid) are part of the interface; the FFT
+buffers `W` and `D` are owned by the workspace, so use one workspace per concurrent relaxation.
 """
 function Workspace(N_shell::Integer, nf::Integer, N::Integer = 0; lattice::Lattice = Hexagonal(), S = nothing, kw...)
     Smat, bvecs, Ns, kp, km, ϕ0, W, D, pB, pF = workspace_fields(1, lattice, N_shell, nf, N, S; kw...)
     return Workspace(lattice, nf, Smat, bvecs, S === nothing ? Ns[1] : Ns, vec(kp), vec(km), ϕ0, W, D, pB, pF)
 end
 
-# as Workspace, with the representatives bvecs[:, 1:3:end] of cell_wavevectors (same order of the stars)
-function WorkspaceC3(N_shell::Integer, nf::Integer, N::Integer = 0; lattice::Lattice = Hexagonal(), kw...)
-    _, bvecs, Ns, kp, km, ϕ0, W, D, pB, pF = workspace_fields(3, lattice, N_shell, nf, N, nothing; kw...)
+"""
+    WorkspaceC3(N_shell, nf, N = 0; lattice = Hexagonal(), pad = 1, flags = FFTW.MEASURE, fft_threads = 1)
+
+As `Workspace`, for fields with C3 symmetry, u(Rr) = R u(r): one mode per star {g, Rg, R²g} (the first of each star of
+`Workspace`, `bvecs[:, 1:3:end]`), and the stacking energy evaluated on one point of each C3 orbit of the grid (`orb`,
+from `grid_orbits`). About three times fewer modes and grid points; for the moiré cell only (reference, C3 symmetry).
+"""
+function WorkspaceC3(N_shell::Integer, nf::Integer, N::Integer = 0; lattice::Lattice = Hexagonal(), S = nothing, kw...)
+    _, bvecs, Ns, kp, km, ϕ0, W, D, pB, pF = workspace_fields(3, lattice, N_shell, nf, N, S; kw...)
     return WorkspaceC3(lattice, nf, bvecs, Ns[1], kp, km, ϕ0, W, D, pB, pF, grid_orbits(lattice, Ns[1]))
 end
 
 # fields of both workspaces: the modes and grid of the cell (Supercells.jl), one mode in nrot (1 or 3) of
 # cell_wavevectors, with the array positions kp[r, m], km[r, m] of ±R^(r-1) g_m for r = 1, …, nrot
 function workspace_fields(nrot, lat, N_shell, nf, N, S; pad::Real = 1, flags = FFTW.MEASURE, fft_threads::Integer = 1)
-    S === nothing || nrot == 1 || error("WorkspaceC3 is for the moiré cell only: use Workspace(N_shell, nf; S)")
+    N_shell >= 1 || throw(ArgumentError("N_shell must be at least 1, got $N_shell"))
+    nf >= 1 || throw(ArgumentError("nf, the number of fields, must be at least 1, got $nf"))
+    S === nothing || nrot == 1 ||
+        throw(ArgumentError("WorkspaceC3 is for the moiré cell only: use Workspace(N_shell, nf; S) for a supercell"))
     Smat = S === nothing ? [1 0; 0 1] : Matrix{Int}(S)
     m, bvecs, Ns = cell_modes(lat, N_shell, S, N, pad)
     m, bvecs = m[:, 1:nrot:end], bvecs[:, 1:nrot:end]
@@ -72,7 +84,8 @@ function workspace_fields(nrot, lat, N_shell, nf, N, S; pad::Real = 1, flags = F
             n = R * n
         end
     end
-    @assert allunique([vec(kp); vec(km)]) "grid $Ns too small: need N > 2 n_max"
+    allunique([vec(kp); vec(km)]) ||
+        throw(ArgumentError("grid $Ns too small for the modes: N must exceed twice the largest grid index of a mode"))
 
     W, D = zeros(ComplexF64, Ns..., nf), zeros(ComplexF64, Ns..., nf)
     pB = plan_bfft(W, (1, 2); flags, num_threads = fft_threads)
@@ -81,7 +94,13 @@ function workspace_fields(nrot, lat, N_shell, nf, N, S; pad::Real = 1, flags = F
     return Smat, bvecs, Ns, kp, km, cell_disregistry(lat, Smat, Ns), W, D, pB, pF
 end
 
-# representative b vectors: (n1, n2) rotated by 0, 2π/3, 4π/3; shell s has max(|n1|, |n2|, |n1 - n2|) = s
+"""
+    make_bvecs(N_shell)
+
+The representative reciprocal vectors (n1, n2) of `N_shell` hexagonal shells, one of each pair ±g, as the columns of a
+2 × 3Σs matrix: for each (n1, n2) with 0 ≤ n2 < n1 ≤ N_shell, its rotations by 0, 2π/3 and 4π/3 in turn, so that the
+shells (max(|n1|, |n2|, |n1 - n2|) = s) come in increasing order and every third column starts a star.
+"""
 function make_bvecs(N_shell::Integer)
     bvecs = Int[]
     for n1 in 1:N_shell, n2 in 0:n1-1
@@ -90,7 +109,11 @@ function make_bvecs(N_shell::Integer)
     return reshape(bvecs, 2, :)
 end
 
-# number of modes that share each amplitude
+"""
+    multiplicity(ws)
+
+The number of modes that share each stored amplitude: 1 for `Workspace`, 3 for `WorkspaceC3`.
+"""
 multiplicity(::Workspace) = 1
 multiplicity(::WorkspaceC3) = 3
 
@@ -98,8 +121,13 @@ multiplicity(::WorkspaceC3) = 3
 kpos(ws::Workspace, r, m) = ws.kp[m], ws.km[m]
 kpos(ws::WorkspaceC3, r, m) = ws.kp[r, m], ws.km[r, m]
 
-# C3 orbits of the N × N grid of the lattice: orb[r, k] is the linear index of R^(r-1) p_k, p_k the first point of
-# orbit k (README)
+"""
+    grid_orbits(lattice, N)
+
+The C3 orbits of the N × N grid of the cell of `lattice`: `orb[r, k]` is the linear index of ``R^{r-1} p_k``, with
+``p_k`` the first point of orbit k and R the rotation by 2π/3 (`rotation(lattice)`, in the basis a1, a2). A point that R
+leaves fixed is an orbit of one point, whose index appears three times in its column (reference, C3 symmetry).
+"""
 function grid_orbits(lat::Lattice, N::Integer)
     R = rotation(lat)   # the rotation by 2π/3 of the grid points (i1, i2)
     seen = falses(N, N)
@@ -116,7 +144,13 @@ function grid_orbits(lat::Lattice, N::Integer)
     return reshape(orb, 3, :)
 end
 
-# u_x + i u_y (units a) at ±g into W and on the grid, from the amplitudes along g and ẑ × g (C3: of each star)
+"""
+    to_grid!(ws, u, moire) -> ws.D
+
+The displacement fields on the grid of `ws`, ``u_x + i u_y`` (units a) of each field in `ws.D` (N × N × nf), from the
+mode amplitudes `u` (columns u_para, u_perp of each field; reference, Conventions), by one FFT. Overwrites `ws.W` and
+`ws.D`.
+"""
 function to_grid!(ws::AbstractWorkspace, u::AbstractMatrix, moire::MoireGeometry)
     (; W, D, pB, nf) = ws
     (; g, invdotgg) = moire
@@ -131,7 +165,13 @@ function to_grid!(ws::AbstractWorkspace, u::AbstractMatrix, moire::MoireGeometry
     return mul!(D, pB, W)
 end
 
-# gradient ∂⟨V⟩/∂(Re u) + i ∂⟨V⟩/∂(Im u) per mode (C3: one mode of each star), from the forces on each field in D
+"""
+    from_grid!(dVdu, ws, moire) -> dVdu
+
+The gradient ``\\partial\\langle V\\rangle/\\partial(\\mathrm{Re}\\,u) + i\\,\\partial\\langle V\\rangle/\\partial(\\mathrm{Im}\\,u)``
+per mode (C3: per star, the gradient of one of its modes) from the forces ``\\partial V/\\partial u_x + i\\,\\partial
+V/\\partial u_y`` on each field in `ws.D`, by one FFT in place. The adjoint of `to_grid!`.
+"""
 function from_grid!(dVdu::AbstractMatrix, ws::AbstractWorkspace, moire::MoireGeometry)
     (; D, pF, nf) = ws
     (; g, invdotgg) = moire
@@ -153,7 +193,8 @@ end
 
 Stacking energy ⟨V⟩ on the grid and, unless `dVdu === nothing`, its gradient `dVdu` = ∂⟨V⟩/∂(Re u) + i ∂⟨V⟩/∂(Im u)
 per mode, from the local energy `f(ϕ0, u_1, …, u_nf) -> (V, ∂V/∂u_1, …, ∂V/∂u_nf)` at each grid point (2-vectors:
-the rigid disregistry ϕ0 and the fields u_f). WorkspaceC3 evaluates f on one point per C3 orbit (README).
+the rigid disregistry ϕ0 and the fields u_f). The grid points are shared out between the threads, so `f` must not write
+to shared state. WorkspaceC3 evaluates f on one point per C3 orbit (reference).
 """
 function stacking_energy!(f::F, dVdu, u, moire, ws::AbstractWorkspace) where {F}
     D = to_grid!(ws, u, moire)

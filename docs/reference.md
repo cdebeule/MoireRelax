@@ -7,7 +7,7 @@ on a supercell of several moiré cells ([Supercells](#supercells)), in which the
 translations: the displacements are expanded in the reciprocal vectors of the cell, and the stacking energy is
 evaluated on a real-space grid of the cell (FFTs). It handles any number of layers and interfaces (bilayers,
 trilayers, stacks), with or without C3 symmetry. The method is described in
-[Refs. 1 and 2](../README.md#citation).
+[Refs. 1 and 2](../README.md#references).
 
 This document is the reference of the package: its conventions, the method behind each part and every function. The
 comments in the code are kept to one line; the longer explanations are collected here. The equations are LaTeX, which
@@ -69,7 +69,7 @@ the grid of the moiré cell, and `field_synthesizer` evaluates it on any grid fo
 | `Project.toml` | name, identifier (UUID) and dependencies of the package |
 | `examples/bilayer.jl`, `examples/trilayer.jl` | a twisted bilayer swept over the angle, and an alternating-twist trilayer relaxed layer by layer |
 | `docs/reference.md` | this document |
-| `test/runtests.jl` | the tests: the invariants of the method (gradients against finite differences, C3 against no symmetry, LBFGS against DIIS, a supercell against the moiré cell, the D3 potential against its Fourier series) and reference energies; run by `Pkg.test()` and, on GitHub, by the CI workflow on Linux, macOS and Windows |
+| `test/runtests.jl` | the tests: the invariants of the method (gradients against finite differences, C3 against no symmetry, LBFGS against DIIS, a supercell against the moiré cell, the D3 potential against its Fourier series and analytic Hessian), the argument checks, reference energies, and the code-quality checks of Aqua.jl; run by `Pkg.test()` and, on GitHub, by the CI workflow on Linux, macOS and Windows |
 
 ## Conventions
 
@@ -128,13 +128,16 @@ $c_3 = \operatorname{Re} V_3$, $p_1 = \operatorname{Im} V_1$, $p_3 = \operatorna
 - `VdV_fast(ϕ, c1, c2, c3, p1, p3)`: $V$ and its gradient at $\phi$; pass the coefficients as a static vector `P`
   (`VdV_fast(ϕ, P...)`). It is `series(harmonics(ϕ), c...)`: `harmonics` gives the sines and cosines of the three
   stars once, which several series at the same $\phi$ can share (internal functions)
-- `hessian(Vg, ϕ; h = 1e-4)`: the Hessian of $V$ at $\phi$, from central differences of the gradient (relative accuracy
-  about $10^{-7}$)
+- `hessian(Vg, ϕ)`: the Hessian of $V$ at $\phi$, analytic, $-\sum_G 2\operatorname{Re}(V_G e^{iG\cdot\phi})\,GG^\mathsf{T}$
+  over the three stars
 - `curvature(Vg, ϕ)`: the interface stiffness $k = \operatorname{tr}(\nabla \nabla V)/2$ (meV/cell/$a^2$), the mean
   curvature of $V$ at $\phi$ (warns if $V$ is not convex there)
 - `minimum_stacking(Vg, ws)`: the lowest stacking, from the lowest grid point refined by Newton steps;
   `stiffness(Vg, ws)` is the curvature there. Without a workspace (`stiffness(Vg)`), a 60 × 60 grid of the cell
   (`cell_grid(60)`) serves as the starting points
+- the same four functions take, in place of the coefficients `Vg`, any callable `V(ϕ) -> (V, ∇V)` as the potential,
+  e.g. `ϕ -> VdV_fast(ϕ, P...)` or a function of another form; its Hessian is then taken by central differences of the
+  gradient (`hessian(V, ϕ; h = 1e-4)`, relative accuracy about $10^{-7}$)
 - utilities: `extrapolate(x, xn, un)` extrapolates (Lagrange) the solutions `un` at the points `xn` to the next point
   `x` of a sweep, as its starting point; `print_params(title, rows)` prints a parameter box, and `coef_rows(Vg, tag)`
   gives its rows for the coefficients of a stacking potential
@@ -149,7 +152,10 @@ the nonlinear forces onto the modes, which matters for sharp domain walls (small
 arguments. `flags = FFTW.MEASURE` (the default) lets FFTW choose its algorithm by timing, so two runs can differ at
 the level of $10^{-16}$; `flags = FFTW.ESTIMATE` makes them reproducible, at the same speed within noise. Scripts use
 the fields `ws.lattice`, `ws.N`, `ws.nf`, `ws.bvecs`, `ws.ϕ0` (the rigid disregistry $s_1 a_1 + s_2 a_2$ on the grid)
-and, with C3, `ws.orb`.
+and, with C3, `ws.orb`. A workspace owns its FFT buffers (`ws.W`, `ws.D`), which every `to_grid!`, `from_grid!` and
+`stacking_energy!` overwrites: use one workspace per concurrent relaxation, and read `ws.D` right after `to_grid!`.
+The arguments are checked (`N_shell` and `nf` at least 1, a grid large enough for the modes, a supercell only without
+symmetry), with an `ArgumentError` otherwise.
 
 `to_grid!(ws, u, moire)` returns $u_x + i u_y$ of each field on the grid (the array `ws.D`, $N \times N \times n_f$),
 and `from_grid!(dVdu, ws, moire)` turns the forces in `ws.D` into the gradient per mode.
@@ -364,8 +370,8 @@ $Q$ does not depend on $g_m$, so one eigendecomposition per column type serves a
 ## Solvers
 
 ```julia
-relax_moire(potential!, K, C, moire, ws; solver = :lbfgs, u0 = ComplexF64[], label = "", kwargs...)
-    -> (u, E_el, E_V, converged)
+relax_moire(potential!, K, C, moire, ws; solver = :lbfgs, u0 = ComplexF64[], label = "", verbose = true, kwargs...)
+    -> (; u, E_el, E_V, converged, iterations)
 ```
 
 minimizes $E = E_\mathrm{el} + E_V$ over the mode amplitudes `u` ($n \times 2n_f$, columns $u_\parallel$, $u_\perp$ of
@@ -379,15 +385,19 @@ each field), with
 $C$ is the Hessian of the harmonic interlayer energy with respect to the fields (e.g. $(k)$ for the relative
 displacement of a bilayer, `chain_laplacian(…)` for the layers of a stack), used to precondition both solvers. The
 starting point is `u0` (zero if empty; it may come from fewer shells, whose modes are the first rows; rows beyond the
-modes of the workspace are dropped). Each call prints one line with `label`, the solver, the number of iterations and
-the energies, and warns if the solver did not converge.
+modes of the workspace are dropped). The result is a named tuple, so `res.u`, `res.iterations`, … as well as
+`u, E_el, E_V, converged = relax_moire(…)` work. With `verbose` (the default), each call prints one line with `label`,
+the solver, the number of iterations and the energies; it warns if the solver did not converge. The sizes of `K`, `C`
+and `u0` are checked (`DimensionMismatch`), and `potential!` must return the energy as a real number
+(`ArgumentError` otherwise).
 
 ### LBFGS (solver = :lbfgs)
 
 LBFGS in $u = S x$ (`precond`). Keywords: `rtol = 1e-6` (gradient tolerance, relative to the size of the solution),
 `max_iter = 300`, `m = 10` (history) and `atol = nothing` (absolute gradient tolerance in the variables $x$; if given,
-it replaces `rtol`). `converged` is Optim's verdict, which is also true when the energy stops changing before the
-gradient tolerance is met (`Optim.g_converged` of the result is the strict criterion).
+it replaces `rtol`). `converged` is the gradient criterion (`Optim.g_converged`): Optim also stops when the energy
+stops changing, which then counts as not converged and gives the warning. Further keywords go to `Optim.Options`
+(e.g. `show_trace = true` prints the iterations).
 
 `minimize_lbfgs(fg!, x0; rtol, atol, max_iter, m, kwargs...)` is LBFGS in variables $x$ scaled such that the Hessian
 is $\approx 1$. The gradient tolerance is relative to the size of the solution, estimated by
@@ -403,7 +413,7 @@ $u_\mathrm{next} = -\frac{K L^2}{2}$ `dVdu`, by simple mixing first and DIIS aft
 `atol = 1e-14` (largest change of $u$ per iteration, relative and absolute), `max_iter_relax = 10`, `rtol_relax = 1e-2`,
 `atol_relax = 1e-14` (switch to DIIS after `max_iter_relax` iterations of simple mixing, or earlier once the change is
 below these), `max_iter = 300` (DIIS iterations after that),
-`β_simplemix = 1`, `restart = 20`, `maxdim = 20`, `verbose = false` (print the changes per iteration).
+`β_simplemix = 1`, `restart = 20`, `maxdim = 20`, `show_trace = false` (print the changes per iteration).
 
 The matrix products of the DIIS mixer run on BLAS threads, so two runs can differ at the level of $10^{-14}$; with
 `OPENBLAS_NUM_THREADS=1` they are reproducible.
