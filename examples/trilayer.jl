@@ -3,7 +3,8 @@
 
 using MoireRelax, StaticArrays, Printf, LinearAlgebra
 
-# graphene (PRB 98, 224102): Lamé constants and stacking potential [c1, c2, c3, p1, p3], in meV per cell
+# graphene (Carr et al., Phys. Rev. B 98, 224102 (2018)): Lamé constants and stacking potential [c1, c2, c3, p1, p3],
+# in meV per cell
 const μ, λ = 47352.0, 69518.0 - 47352.0
 const Vg = [4.064 / 2, -0.374 / 2, -0.095 / 2, 0.0, 0.0]
 
