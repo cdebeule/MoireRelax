@@ -45,14 +45,15 @@ The tests run with `julia --project=. -e 'using Pkg; Pkg.test()'`.
 
 ## Example
 
-Twisted bilayer graphene at 1°, relaxed with C3 symmetry on the moiré cell:
+Twisted bilayer graphene at 1°, relaxed with C3 symmetry on the moiré cell, with the graphene parameters of Carr
+*et al.* [3]:
 
 ```julia
 using MoireRelax, StaticArrays
 
 θ = 1.0                                             # twist angle (degrees)
-μ, λ = 47352.0, 69518.0 - 47352.0                   # Lamé constants of graphene (meV per cell)
-Vg = [4.064 / 2, -0.374 / 2, -0.095 / 2, 0, 0]      # stacking potential [c1, c2, c3, p1, p3] (meV per cell)
+μ, λ = 47352.0, 69518.0 - 47352.0                   # Lamé constants of graphene (meV per cell) [3]
+Vg = [4.064 / 2, -0.374 / 2, -0.095 / 2, 0, 0]      # stacking potential [c1, c2, c3, p1, p3] (meV per cell) [3]
 
 ws = WorkspaceC3(30, 1)                             # 30 shells of moiré harmonics, one field u = u1 - u2
 moire = MoireGeometry(moire_matrix(θ), ws)
@@ -79,6 +80,12 @@ The continuum theory implemented here is developed in
 
 [2] C. De Beule, Y. Lai, L. Peng, D. Bennett, and S. Adam,
 *Lattice relaxation in moiré heterobilayers*, [arXiv:2605.17805](https://arxiv.org/abs/2605.17805) (2026).
+
+The parameters of twisted bilayer graphene in the example and in `examples/` are from
+
+[3] S. Carr, D. Massatt, S. B. Torrisi, P. Cazeaux, M. Luskin, and E. Kaxiras,
+*Relaxation and domain formation in incommensurate two-dimensional heterostructures*,
+[Phys. Rev. B **98**, 224102](https://doi.org/10.1103/PhysRevB.98.224102) (2018).
 
 A paper on the package itself is in preparation; how to cite it will be added here.
 

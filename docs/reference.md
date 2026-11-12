@@ -48,7 +48,7 @@ function relax_bilayer(θ, μ, λ, Vg; N_shell = 30, solver = :lbfgs)
     return relax_moire(potential!, K, C, moire, ws; solver)
 end
 
-# graphene (PRB 98, 224102): Lamé constants μ, λ and stacking potential [c1, c2, c3, p1, p3] (meV/cell)
+# graphene (Carr et al., Phys. Rev. B 98, 224102 (2018)): Lamé constants μ, λ and stacking potential (meV/cell)
 u, E_el, E_V, converged = relax_bilayer(1.0, 47352, 69518 - 47352, [4.064 / 2, -0.374 / 2, -0.095 / 2, 0, 0])
 ```
 
