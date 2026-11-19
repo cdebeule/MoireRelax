@@ -46,14 +46,14 @@ The tests run with `julia --project=. -e 'using Pkg; Pkg.test()'`.
 ## Example
 
 Twisted bilayer graphene at 1°, relaxed with C3 symmetry on the moiré cell, with the graphene parameters of Carr
-*et al.* [3]:
+*et al.* [4]:
 
 ```julia
 using MoireRelax, StaticArrays
 
 θ = 1.0                                             # twist angle (degrees)
-μ, λ = 47352.0, 69518.0 - 47352.0                   # Lamé constants of graphene (meV per cell) [3]
-Vg = [4.064 / 2, -0.374 / 2, -0.095 / 2, 0, 0]      # stacking potential [c1, c2, c3, p1, p3] (meV per cell) [3]
+μ, λ = 47352.0, 69518.0 - 47352.0                   # Lamé constants of graphene (meV per cell) [4]
+Vg = [4.064 / 2, -0.374 / 2, -0.095 / 2, 0, 0]      # stacking potential [c1, c2, c3, p1, p3] (meV per cell) [4]
 
 ws = WorkspaceC3(30, 1)                             # 30 shells of moiré harmonics, one field u = u1 - u2
 moire = MoireGeometry(moire_matrix(θ), ws)
@@ -81,11 +81,48 @@ The continuum theory implemented here is developed in
 [2] C. De Beule, Y. Lai, L. Peng, D. Bennett, and S. Adam,
 *Lattice relaxation in moiré heterobilayers*, [arXiv:2605.17805](https://arxiv.org/abs/2605.17805) (2026).
 
-The parameters of twisted bilayer graphene in the example and in `examples/` are from
+It builds on earlier continuum theories of lattice relaxation in moiré materials, in particular
 
-[3] S. Carr, D. Massatt, S. B. Torrisi, P. Cazeaux, M. Luskin, and E. Kaxiras,
+[3] N. N. T. Nam and M. Koshino,
+*Lattice relaxation and energy band modulation in twisted bilayer graphene*,
+[Phys. Rev. B **96**, 075311](https://doi.org/10.1103/PhysRevB.96.075311) (2017).
+
+[4] S. Carr, D. Massatt, S. B. Torrisi, P. Cazeaux, M. Luskin, and E. Kaxiras,
 *Relaxation and domain formation in incommensurate two-dimensional heterostructures*,
-[Phys. Rev. B **98**, 224102](https://doi.org/10.1103/PhysRevB.98.224102) (2018).
+[Phys. Rev. B **98**, 224102](https://doi.org/10.1103/PhysRevB.98.224102) (2018),
+also the source of the parameters of twisted bilayer graphene in the example and in `examples/`.
+
+[5] S. Dai, Y. Xiang, and D. J. Srolovitz,
+*Twisted bilayer graphene: Moiré with a twist*,
+[Nano Lett. **16**, 5923](https://doi.org/10.1021/acs.nanolett.6b02870) (2016).
+
+[6] J. Jung, A. M. DaSilva, A. H. MacDonald, and S. Adam,
+*Origin of band gaps in graphene on hexagonal boron nitride*,
+[Nat. Commun. **6**, 6308](https://doi.org/10.1038/ncomms7308) (2015).
+
+[7] V. V. Enaldiev, V. Zólyomi, C. Yelgel, S. J. Magorrian, and V. I. Fal'ko,
+*Stacking domains and dislocation networks in marginally twisted bilayers of transition metal dichalcogenides*,
+[Phys. Rev. Lett. **124**, 206101](https://doi.org/10.1103/PhysRevLett.124.206101) (2020).
+
+First-principles stacking energies of graphene, hBN and graphene/hBN bilayers are given, e.g., in
+
+[8] S. Zhou, J. Han, S. Dai, J. Sun, and D. J. Srolovitz,
+*van der Waals bilayer energetics: Generalized stacking-fault energy of graphene, boron nitride, and graphene/boron
+nitride bilayers*, [Phys. Rev. B **92**, 155438](https://doi.org/10.1103/PhysRevB.92.155438) (2015).
+
+The reconstruction these theories describe has been imaged, e.g., in
+
+[9] J. S. Alden, A. W. Tsen, P. Y. Huang, R. Hovden, L. Brown, J. Park, D. A. Muller, and P. L. McEuen,
+*Strain solitons and topological defects in bilayer graphene*,
+[Proc. Natl. Acad. Sci. USA **110**, 11256](https://doi.org/10.1073/pnas.1309394110) (2013).
+
+[10] H. Yoo *et al.*,
+*Atomic and electronic reconstruction at the van der Waals interface in twisted bilayer graphene*,
+[Nat. Mater. **18**, 448](https://doi.org/10.1038/s41563-019-0346-z) (2019).
+
+[11] A. Weston *et al.*,
+*Atomic reconstruction in twisted bilayers of transition metal dichalcogenides*,
+[Nat. Nanotechnol. **15**, 592](https://doi.org/10.1038/s41565-020-0682-9) (2020).
 
 A paper on the package itself is in preparation; how to cite it will be added here.
 
