@@ -1,15 +1,16 @@
 # Twisted bilayer graphene swept over the twist angle, 2° to 0.01°: the Fourier components of the relaxation,
 # the rotation and the dilation of u = u1 - u2 with one amplitude per C3 star, and the energies against the angle.
 # The number of shells follows the angle (N_shell θ ≳ 4 for the domain walls, which converges the energies to about
-# 1e-7 meV/cell), so the smallest angles use 400 shells on an 810² grid; the whole sweep takes a few seconds.
+# 1e-7 meV per monolayer cell), so the smallest angles use 400 shells on an 810² grid; the whole sweep takes a few
+# seconds.
 # Run from the repository root with `julia -t auto --project=examples examples/bilayer_sweep.jl`. The figures and the
 # data are written to output/: bilayer_sweep_modes.png, bilayer_sweep_energies.png and bilayer_sweep.txt.
 
 using MoireRelax, StaticArrays, Printf, CairoMakie
 using MoireRelax: FFTW
 
-# graphene (Carr et al., Phys. Rev. B 98, 224102 (2018)): Lamé constants and stacking potential [c1, c2, c3, p1, p3],
-# in meV per cell
+# graphene (Carr et al., Phys. Rev. B 98, 224102 (2018)): Lamé constants and the Fourier components of the stacking
+# potential, in meV per monolayer cell
 const μ, λ = 47352.0, 69518.0 - 47352.0
 const Vg = [4.064 / 2, -0.374 / 2, -0.095 / 2, 0.0, 0.0]
 const P = SVector{5}(Vg)
@@ -45,7 +46,7 @@ u_para = [real(sols[i][k, 1]) for k in 1:nstar, i in eachindex(θs)]   # dilatio
 out = mkpath("output")
 open(joinpath(out, "bilayer_sweep.txt"), "w") do io
     stars = join(("($(b[1]),$(b[2]))" for b in eachcol(bvecs)), " ")
-    println(io, "# theta(deg) E_el E_V (meV/cell), then u_perp and u_para of the stars ", stars)
+    println(io, "# theta(deg) E_el E_V (meV per monolayer cell), then u_perp and u_para of the stars ", stars)
     for i in eachindex(θs)
         println(io, join((θs[i], E_el[i], E_V[i], u_perp[:, i]..., u_para[:, i]...), " "))
     end

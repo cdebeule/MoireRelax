@@ -74,8 +74,7 @@ This prints the elastic and stacking energies (`E_el = 1.219` and `E_V = -2.738`
 `u`, the Fourier amplitudes of the relative displacement of the layers. The scripts in [`examples/`](examples) go
 further: `bilayer.jl` relaxes a few angles and draws the relaxed moiré, `bilayer_sweep.jl` follows the Fourier
 components and the energies from 2° to 0.01°, and `trilayer.jl` relaxes the three layers of an alternating-twist
-trilayer. The two bilayer scripts write their figures (and the sweep its data) to `output/`; the trilayer script
-prints its results.
+trilayer. They write their figures and data to `output/`.
 
 ## References
 

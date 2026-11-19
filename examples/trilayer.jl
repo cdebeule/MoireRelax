@@ -1,10 +1,11 @@
 # Alternating-twist trilayer graphene (layers at +θ/2, -θ/2, +θ/2): relaxation of the three layer displacements.
-# Run from the repository root with `julia -t auto --project=examples examples/trilayer.jl` (or `--project=.`).
+# Run from the repository root with `julia -t auto --project=examples examples/trilayer.jl` (or `--project=.`). The
+# energies and the largest displacement of each layer are printed and written to output/trilayer.txt.
 
 using MoireRelax, StaticArrays, Printf, LinearAlgebra
 
-# graphene (Carr et al., Phys. Rev. B 98, 224102 (2018)): Lamé constants and stacking potential [c1, c2, c3, p1, p3],
-# in meV per cell
+# graphene (Carr et al., Phys. Rev. B 98, 224102 (2018)): Lamé constants and the Fourier components of the stacking
+# potential, in meV per monolayer cell
 const μ, λ = 47352.0, 69518.0 - 47352.0
 const Vg = [4.064 / 2, -0.374 / 2, -0.095 / 2, 0.0, 0.0]
 
@@ -31,3 +32,9 @@ end
 u, E_el, E_V, umax = relax_trilayer(1.0, Vg)
 @printf("    largest displacement of each layer: %.4f, %.4f, %.4f a\n", umax...)
 println("    (the outer layers move equally, the middle layer about twice as much and the other way)")
+file = joinpath(mkpath("output"), "trilayer.txt")
+open(file, "w") do io
+    println(io, "# theta = 1 deg: E_el E_V (meV per monolayer cell), largest displacement of layers 1 2 3 (a)")
+    println(io, join((E_el, E_V, umax...), " "))
+end
+println("data saved as ", file)
