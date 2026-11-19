@@ -58,7 +58,7 @@ using MoireRelax, StaticArrays
 μ, λ = 47352.0, 69518.0 - 47352.0                   # Lamé constants of graphene (meV per monolayer cell)
 Vg = [4.064 / 2, -0.374 / 2, -0.095 / 2, 0, 0]      # stacking potential: Fourier components (meV per monolayer cell)
 
-ws = WorkspaceC3(30, 1)                             # 30 shells of Fourier components, one field u = u1 - u2
+ws = WorkspaceC3(30, 1)                             # 30 shells, one field u = u1 - u2
 moire = MoireGeometry(moire_matrix(θ), ws)          # the moiré of the twist θ
 K = [2 / (λ + 2μ)  2 / μ]                           # compliances of u, for its dilation and rotation parts
 C = fill(stiffness(Vg, ws), 1, 1)                   # interface stiffness, to precondition the solver
