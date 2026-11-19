@@ -7,19 +7,20 @@
 A Julia package for lattice relaxation in moiré materials with continuum elasticity theory. Version 0.1: the
 interface may still change before version 1.0.
 
-MoireRelax relaxes the in-plane displacements of the layers of a moiré of monolayers with hexagonal symmetry
-(graphene, hBN, transition-metal dichalcogenides, …): it minimizes the elastic energy of the layers plus the stacking
-energy of their interfaces, for any number of layers (twisted bilayers, trilayers, stacks), with or without C3
-symmetry. The relaxation is computed on one moiré cell with periodic boundary conditions, or on a supercell of several
-moiré cells for relaxations that break the moiré periodicity: the displacements are expanded in the reciprocal vectors
-of the cell, the stacking energy is evaluated on a real-space grid of the cell using the fast Fourier transform (FFT),
-and the energy is minimized by preconditioned LBFGS or DIIS. The method is described in Refs. [1] and [2].
+MoireRelax computes how the layers of a moiré material relax in plane. The layers are monolayers with a hexagonal
+lattice (graphene, hBN, transition-metal dichalcogenides, …), and the package minimizes the elastic energy of the
+layers plus the stacking energy of their interfaces, the interlayer energy that depends on the local stacking. It
+handles any number of layers (twisted bilayers, trilayers, stacks), with or without imposing the threefold (C3)
+rotation symmetry of the moiré. The relaxation is computed on one moiré cell with periodic boundary conditions, or on
+a supercell of several moiré cells for relaxations that break the moiré periodicity. The displacements are expanded in
+a Fourier series on the reciprocal lattice of the cell, the stacking energy is evaluated on a real-space grid, with
+fast Fourier transforms (FFT) between the two, and the total energy is minimized by preconditioned LBFGS or DIIS. The
+method is described in Refs. [1] and [2].
 
 - [`docs/reference.md`](docs/reference.md) documents the conventions, the method and every function.
-- [`examples/`](examples) has a twisted bilayer at a few angles with a figure of the relaxed moiré, the same swept
-  from 2° to 0.01° with the Fourier components of the relaxation and the energies against the angle, and an
-  alternating-twist trilayer. The package computes the fields and brings them to any points; the figures are made by
-  the user, and the bilayer examples show how, with CairoMakie.
+- [`examples/`](examples) has complete scripts for twisted bilayers and an alternating-twist trilayer
+  ([Example](#example)). The package computes the displacement fields and evaluates them at any points; plotting is
+  left to the user, and the bilayer examples show how to do it with CairoMakie.
 
 ## Installation
 
@@ -30,8 +31,9 @@ using Pkg
 Pkg.add(url = "https://github.com/cdebeule/MoireRelax")
 ```
 
-Or clone the repository and run the examples in their environment, which adds CairoMakie for the figures (Julia 1.11
-or later for `instantiate`; on 1.10, `Pkg.develop(path = "."); Pkg.add("CairoMakie")` in that environment instead):
+To run the examples, clone the repository and install their environment, which also adds CairoMakie for the figures
+(Julia 1.11 or later; on Julia 1.10, run `Pkg.develop(path = "."); Pkg.add("CairoMakie")` in the `examples`
+environment instead of `instantiate`):
 
 ```sh
 git clone https://github.com/cdebeule/MoireRelax
@@ -40,36 +42,39 @@ julia --project=examples -e 'using Pkg; Pkg.instantiate()'
 julia -t auto --project=examples examples/bilayer.jl
 ```
 
-Start Julia with threads (`-t auto`): the grid points of the stacking energy are shared out between them.
-The tests run with `julia --project=. -e 'using Pkg; Pkg.test()'`.
+Start Julia with several threads (`-t auto`) to evaluate the stacking energy in parallel. The tests run with
+`julia --project=. -e 'using Pkg; Pkg.test()'`.
 
 ## Example
 
 Twisted bilayer graphene at 1°, relaxed with C3 symmetry on the moiré cell, with the graphene parameters of Carr
-*et al.* [4]:
+*et al.* [4]. Lengths are in units of the lattice constant *a* of the monolayer, and energies in meV per monolayer
+unit cell (not per moiré cell).
 
 ```julia
 using MoireRelax, StaticArrays
 
 θ = 1.0                                             # twist angle (degrees)
-μ, λ = 47352.0, 69518.0 - 47352.0                   # Lamé constants of graphene (meV per cell) [4]
-Vg = [4.064 / 2, -0.374 / 2, -0.095 / 2, 0, 0]      # stacking potential [c1, c2, c3, p1, p3] (meV per cell) [4]
+μ, λ = 47352.0, 69518.0 - 47352.0                   # Lamé constants of graphene (meV per monolayer cell)
+Vg = [4.064 / 2, -0.374 / 2, -0.095 / 2, 0, 0]      # stacking potential: Fourier components (meV per monolayer cell)
 
-ws = WorkspaceC3(30, 1)                             # 30 shells of moiré harmonics, one field u = u1 - u2
-moire = MoireGeometry(moire_matrix(θ), ws)
-K = [2 / (λ + 2μ)  2 / μ]                           # compliances of u (dilation, rotation)
+ws = WorkspaceC3(30, 1)                             # 30 shells of Fourier components, one field u = u1 - u2
+moire = MoireGeometry(moire_matrix(θ), ws)          # the moiré of the twist θ
+K = [2 / (λ + 2μ)  2 / μ]                           # compliances of u, for its dilation and rotation parts
 C = fill(stiffness(Vg, ws), 1, 1)                   # interface stiffness, to precondition the solver
-P = SVector{5}(Vg)
+P = SVector{5}(Vg)                                  # the same as a static vector, for speed
+# the stacking energy, averaged over the grid, at the local stacking ϕ0 + u (ϕ0: rigid layers), and its gradient
 potential!(dVdu, u) = stacking_energy!((ϕ0, w) -> VdV_fast(ϕ0 + w, P...), dVdu, u, moire, ws)
 
 u, E_el, E_V, converged = relax_moire(potential!, K, C, moire, ws)
-D = to_grid!(ws, u, moire)                          # u_x + i u_y on the grid of the moiré cell (units of a)
+D = to_grid!(ws, u, moire)                          # u_x + i u_y on a real-space grid of the moiré cell (units of a)
 ```
 
-This prints the elastic and stacking energies per cell (`E_el = 1.219`, `E_V = -2.738` meV) and returns the mode
-amplitudes `u`. The examples go further: `bilayer.jl` relaxes a few angles and draws the relaxed moiré,
-`bilayer_sweep.jl` follows the Fourier components and the energies from 2° to 0.01°, and `trilayer.jl` relaxes the
-three layers of an alternating-twist trilayer; they write their figures and data to `output/`.
+This prints the elastic and stacking energies (`E_el = 1.219` and `E_V = -2.738` meV per monolayer cell) and returns
+`u`, the Fourier amplitudes of the relative displacement of the layers. The scripts in [`examples/`](examples) go
+further: `bilayer.jl` relaxes a few angles and draws the relaxed moiré, `bilayer_sweep.jl` follows the Fourier
+components and the energies from 2° to 0.01°, and `trilayer.jl` relaxes the three layers of an alternating-twist
+trilayer. They write their figures and data to `output/`.
 
 ## References
 
